@@ -6,7 +6,7 @@ import com.meltwater.rxrabbit.ConsumeChannel;
 import com.meltwater.rxrabbit.Message;
 import com.meltwater.rxrabbit.metrics.RxRabbitMetricsReporter;
 import com.meltwater.rxrabbit.metrics.RxStatsDMetricsReporter;
-import com.meltwater.rxrabbit.util.Fibonacci;
+import com.meltwater.rxrabbit.util.DelaySequence;
 import com.meltwater.rxrabbit.util.Logger;
 import com.rabbitmq.client.*;
 import com.timgroup.statsd.StatsDClient;
@@ -30,7 +30,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
     private final static AtomicInteger consumerCount = new AtomicInteger();
     private final static Logger log = new Logger(SingleChannelConsumer.class);
 
-    private final RxRabbitMetricsReporter metricsReporter; //TODO we want another interface if we want to open-source
+    private final RxRabbitMetricsReporter metricsReporter; //TODO use an event callback interface here that handles metrics
     private final ChannelFactory channelFactory;
     private final long closeTimeout;
     private final int maxReconnectAttempts;
@@ -40,7 +40,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
 
     public SingleChannelConsumer(ChannelFactory channelFactory,
                                  String queue,
-                                 String consumerTag,
+                                 String tagPrefix,
                                  int maxReconnectAttempts,
                                  long closeTimeout,
                                  Scheduler scheduler,
@@ -49,7 +49,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
         this.channelFactory = channelFactory;
         this.scheduler = scheduler;
         this.closeTimeout = closeTimeout;
-        this.tagPrefix = consumerTag;
+        this.tagPrefix = tagPrefix;
         this.maxReconnectAttempts = maxReconnectAttempts;
         this.metricsReporter = new RxStatsDMetricsReporter(statsDClient, "rabbit-consume");
     }
@@ -84,8 +84,8 @@ public class SingleChannelConsumer implements RabbitConsumer {
                     }
                     terminate(running,consumerRef);
                     int conAttempt = connectAttempt.get();
-                    if (conAttempt < maxReconnectAttempts) {
-                        final int delaySec = Fibonacci.getDelaySec(conAttempt);
+                    if (maxReconnectAttempts <= 0 || conAttempt < maxReconnectAttempts) {
+                        final int delaySec = DelaySequence.getDelaySec(conAttempt);
                         connectAttempt.incrementAndGet();
                         log.infoWithParams("Scheduling attempting to restart consumer",
                                 "attempt", connectAttempt,
@@ -166,8 +166,8 @@ public class SingleChannelConsumer implements RabbitConsumer {
             this.metricsReporter = metricsReporter;
             this.deliveryOffset = deliveryOffset;
             this.largestSeenDeliverTag = largestSeenDeliverTag;
-            this.deliveryWorker = scheduler.createWorker();
-            this.ackWorker = scheduler.createWorker();
+            this.deliveryWorker = scheduler.createWorker(); //TODO name the threads
+            this.ackWorker = scheduler.createWorker(); //TODO name the threads
             deliveryOffset.set(largestSeenDeliverTag.get());
         }
 

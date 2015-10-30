@@ -1,6 +1,5 @@
 package com.meltwater.rxrabbit.impl;
 
-
 import com.google.common.collect.Iterables;
 import com.meltwater.rxrabbit.RabbitPublisher;
 import com.rabbitmq.client.AMQP;
@@ -10,12 +9,12 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 
-public class RoundRobinRabbitPublisher implements RabbitPublisher {
+public class RoundRobinPublisher implements RabbitPublisher {
 
     private final List<RabbitPublisher> backingPublishers;
     private final Iterator<RabbitPublisher> publisherIterator;
 
-    public RoundRobinRabbitPublisher(List<RabbitPublisher> backingPublishers) {
+    public RoundRobinPublisher(List<RabbitPublisher> backingPublishers) {
         this.backingPublishers = backingPublishers;
         this.publisherIterator = Iterables.cycle(backingPublishers).iterator();
     }
@@ -30,6 +29,6 @@ public class RoundRobinRabbitPublisher implements RabbitPublisher {
         for (RabbitPublisher backingPublisher : backingPublishers) {
             backingPublisher.close();
         }
-
     }
+
 }

@@ -4,7 +4,7 @@ package com.meltwater.rxrabbit.util;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
-//TODO maybe not great to open-source?
+//TODO this class should not be open sourced??
 public class DockerAwareHostnameProvider {
     static Logger logger = new Logger(DockerAwareHostnameProvider.class);
 

@@ -1,7 +1,7 @@
 package com.meltwater.rxrabbit.impl;
 
 import com.meltwater.rxrabbit.AdminChannel;
-import com.meltwater.rxrabbit.BrokerAddress;
+import com.meltwater.rxrabbit.BrokerAddresses;
 import com.meltwater.rxrabbit.ChannelFactory;
 import com.meltwater.rxrabbit.ChannelWrapper;
 import com.meltwater.rxrabbit.ConsumeChannel;
@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 public class DefaultChannelFactory implements ChannelFactory {
@@ -35,13 +34,12 @@ public class DefaultChannelFactory implements ChannelFactory {
     private static final Logger log = new Logger(DefaultChannelFactory.class);
 
     private final Map<ChannelType, ConnectionInfo> conToChannel = new HashMap<>();
-    private final Map<ChannelType, AtomicInteger> channelIdentifiers = new HashMap<>();
 
-    private final List<BrokerAddress> addresses;
+    private final BrokerAddresses addresses;
     private final RabbitSettings settings;
 
-    public DefaultChannelFactory(List<BrokerAddress> addresses, RabbitSettings settings) {
-        assert !addresses.isEmpty();
+    public DefaultChannelFactory(BrokerAddresses addresses, RabbitSettings settings) {
+        assert !addresses.getAddresses().isEmpty();
         this.addresses = addresses;
         this.settings = settings;
     }
@@ -71,19 +69,11 @@ public class DefaultChannelFactory implements ChannelFactory {
         if(channel == null){
             return;
         }
-
-        boolean connAlreadyClosed = true;
         final ConnectionInfo connectionInfo = conToChannel.get(channel.channelType);
         if (connectionInfo == null) {
             return;
         }
-
-        for (ChannelImpl channelInfo : new ArrayList<>(connectionInfo.channels)) {
-            if(channelInfo.identifier <= channel.identifier){
-                connAlreadyClosed = false;
-            }
-        }
-        if(!connAlreadyClosed){
+        if(!connectionInfo.channels.isEmpty()){
             for (ChannelImpl ch : new ArrayList<>(connectionInfo.channels)) {
                 closeChannel(ch);
             }
@@ -104,7 +94,9 @@ public class DefaultChannelFactory implements ChannelFactory {
             try {
                 channel.actuallyClose();
             } catch (Exception e) {
-                log.warnWithParams("Unexpected error when closing channel.", "wasOpen", channelIsOpen, "isOpen", channel.isOpen());
+                log.warnWithParams("Unexpected error when closing channel.", e,
+                        "wasOpen", channelIsOpen,
+                        "isOpen", channel.isOpen());
             }
         }
 
@@ -127,7 +119,9 @@ public class DefaultChannelFactory implements ChannelFactory {
                 try {
                     connection.close();
                 } catch (Exception e) {
-                    log.warnWithParams("Unexpected error when closing connection.", "wasOpen", connectionIsOpen, "isOpen", connection.isOpen());
+                    log.warnWithParams("Unexpected error when closing connection.", e,
+                            "wasOpen", connectionIsOpen,
+                            "isOpen", connection.isOpen());
                 }
             }
             log.infoWithParams("Closed and disposed "+connectionInfo.type+" connection.",
@@ -143,13 +137,12 @@ public class DefaultChannelFactory implements ChannelFactory {
         ConnectionInfo info = conToChannel.get(type);
 
         final int hashCode = innerChannel.hashCode();
-        int identifier = getIdentifierForChannel(type);
 
         ChannelImpl channel = null;
         switch (type){
-            case consume  : channel = new ConsumeChannelImpl(innerChannel, queueOrExchange, identifier, hashCode, type, this); break;
-            case publish  : channel = new PublishChannelImpl(innerChannel, queueOrExchange, identifier, hashCode, type, this); break;
-            case admin    : channel = new AdminChannelImpl(innerChannel,identifier, hashCode, type, this); break;
+            case consume  : channel = new ConsumeChannelImpl(innerChannel, queueOrExchange, hashCode, type, this); break;
+            case publish  : channel = new PublishChannelImpl(innerChannel, queueOrExchange, hashCode, type, this); break;
+            case admin    : channel = new AdminChannelImpl(innerChannel, hashCode, type, this); break;
         }
 
         info.channels.add(channel);
@@ -171,11 +164,6 @@ public class DefaultChannelFactory implements ChannelFactory {
         return channel;
     }
 
-    private synchronized int getIdentifierForChannel(ChannelType type) {
-        final AtomicInteger ident = channelIdentifiers.getOrDefault(type, new AtomicInteger());
-        channelIdentifiers.put(type, ident);
-        return ident.incrementAndGet();
-    }
 
     private synchronized Connection getOrCreateConnection(ChannelType connectionType) throws IOException, TimeoutException {
         if (conToChannel.containsKey(connectionType)) {
@@ -185,11 +173,11 @@ public class DefaultChannelFactory implements ChannelFactory {
                 conToChannel.remove(connectionType);
             }
         }
-        String connectionName = settings.appId + "-" + connectionType;
+        String connectionName = settings.app_instance_id + "-" + connectionType;
         DateTime startTime = new DateTime(DateTimeZone.UTC);
 
         HashMap<String, String> clientProperties = new HashMap<>();
-        clientProperties.put("appId", settings.appId);
+        clientProperties.put("appId", settings.app_instance_id);
         clientProperties.put("name", connectionName);
         clientProperties.put("connectTime", startTime.toString());
         clientProperties.put("connectionType", connectionType.toString());
@@ -202,11 +190,13 @@ public class DefaultChannelFactory implements ChannelFactory {
         cf.setHost(addresses.get(0).host);
         cf.setVirtualHost(addresses.get(0).virtualHost);
         cf.setRequestedHeartbeat(settings.heartbeat);
-        cf.setConnectionTimeout(settings.connection_timeout);
+        cf.setConnectionTimeout(settings.connection_timeout_millis);
         cf.setShutdownTimeout(settings.shutdown_timeout_millis);
-        //cf.setRequestedFrameMax(settings.re);
-        cf.setRequestedChannelMax(0);
-        cf.setAutomaticRecoveryEnabled(false);//Hard coded
+        cf.setRequestedFrameMax(settings.frame_max);
+        cf.setHandshakeTimeout(settings.handshake_timeout_millis);
+        //cf.setSocketConfigurator(); NOTE is this worth investigating??
+        cf.setRequestedChannelMax(0);//Hard coded ..
+        cf.setAutomaticRecoveryEnabled(false);//Hard coded ..
         cf.setTopologyRecoveryEnabled(false);//Hard coded ..
 
         Connection connection = cf.newConnection();
@@ -214,7 +204,7 @@ public class DefaultChannelFactory implements ChannelFactory {
                 new ConnectionInfo(
                         connection,
                         new ArrayList<>(),
-                        settings.appId,
+                        settings.app_instance_id,
                         startTime,
                         connectionType,
                         connectionName)
@@ -231,7 +221,7 @@ public class DefaultChannelFactory implements ChannelFactory {
 
     public static class ConnectionInfo {
         final Connection connection;
-        final List<ChannelImpl> channels; //TODO
+        final List<ChannelImpl> channels;
         final String appId;
         final DateTime startTime;
         final ChannelType type;
@@ -257,14 +247,12 @@ public class DefaultChannelFactory implements ChannelFactory {
 
     static abstract class ChannelImpl implements ChannelWrapper {
         final Channel delegate;
-        final int identifier;
         final int hashCode;
         final ChannelType channelType;
         final DefaultChannelFactory factory;
 
-        ChannelImpl(Channel delegate, int identifier, int hashCode, ChannelType channelType, DefaultChannelFactory factory) {
+        ChannelImpl(Channel delegate, int hashCode, ChannelType channelType, DefaultChannelFactory factory) {
             this.delegate = delegate;
-            this.identifier = identifier;
             this.hashCode = hashCode;
             this.channelType = channelType;
             this.factory = factory;
@@ -311,8 +299,8 @@ public class DefaultChannelFactory implements ChannelFactory {
     }
 
     static class AdminChannelImpl extends ChannelImpl implements AdminChannel {
-        AdminChannelImpl(Channel delegate, int identifier, int hashCode, ChannelType channelType, DefaultChannelFactory factory) {
-            super(delegate, identifier, hashCode, channelType, factory);
+        AdminChannelImpl(Channel delegate, int hashCode, ChannelType channelType, DefaultChannelFactory factory) {
+            super(delegate, hashCode, channelType, factory);
         }
 
         @Override
@@ -405,8 +393,8 @@ public class DefaultChannelFactory implements ChannelFactory {
 
         private final String exchange;
 
-        PublishChannelImpl(Channel delegate, String exchange, int identifier, int hashCode, ChannelType channelType, DefaultChannelFactory factory) {
-            super(delegate, identifier, hashCode, channelType, factory);
+        PublishChannelImpl(Channel delegate, String exchange, int hashCode, ChannelType channelType, DefaultChannelFactory factory) {
+            super(delegate, hashCode, channelType, factory);
             this.exchange = exchange;
         }
 
@@ -426,19 +414,18 @@ public class DefaultChannelFactory implements ChannelFactory {
         }
 
         @Override
-        public Void basicPublish(String exchange, String routingKey, AMQP.BasicProperties props, byte[] payload) throws IOException {
+        public void basicPublish(String exchange, String routingKey, AMQP.BasicProperties props, byte[] payload) throws IOException {
             delegate.basicPublish(exchange,routingKey,props,payload);
-            return null;
         }
 
         @Override
-        public void waitForConfirms(long closeTimeoutMillis) throws InterruptedException, TimeoutException {
-            delegate.waitForConfirms(closeTimeoutMillis);
+        public boolean waitForConfirms(long closeTimeoutMillis) throws InterruptedException, TimeoutException {
+            return delegate.waitForConfirms(closeTimeoutMillis);
         }
 
         @Override
-        public void waitForConfirms() throws InterruptedException {
-            delegate.waitForConfirms();
+        public boolean waitForConfirms() throws InterruptedException {
+            return delegate.waitForConfirms();
         }
     }
 
@@ -446,8 +433,8 @@ public class DefaultChannelFactory implements ChannelFactory {
 
         private final String queue;
 
-        ConsumeChannelImpl(Channel delegate, String queue, int identifier, int hashCode, ChannelType channelType, DefaultChannelFactory factory) {
-            super(delegate, identifier, hashCode, channelType, factory);
+        ConsumeChannelImpl(Channel delegate, String queue, int hashCode, ChannelType channelType, DefaultChannelFactory factory) {
+            super(delegate, hashCode, channelType, factory);
             this.queue = queue;
         }
 

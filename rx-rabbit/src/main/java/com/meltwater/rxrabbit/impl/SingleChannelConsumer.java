@@ -323,7 +323,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
                                 long actualDeliverTag = envelope.getDeliveryTag() - currentDeliveryOffset;
                                 channel.basicNack(actualDeliverTag, false);
                                 metricsReporter.reportCount("nack");
-                                log.traceWithParams("Failed message on channel.",
+                                log.traceWithParams("Received nack on channel.",
                                         "channel", channel,
                                         "deliveryTag", envelope.getDeliveryTag(),
                                         "basicProperties", headers.toString());

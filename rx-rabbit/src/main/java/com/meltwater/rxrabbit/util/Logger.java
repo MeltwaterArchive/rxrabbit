@@ -8,19 +8,6 @@ import java.util.List;
 
 /**
  * Logger class which provides a standardized way of outputting variables and their values.
- *
- * <p>
- * Example usage:
- * <code><pre>
- * Logger log = new Logger("example");
- * log.infoWithParams("Testing out logging", "excitement", 9001, "name", log.getName());
- * </pre></code>
- * Which would output something like this (depending on you slf4j backend configuration):
- * <pre>example INFO: Testing out logging [excitement=9001, name=example]</pre>
- * </p>
- *
- * <p>Note that variables must have a sane toString() method.</p>
- *
  */
 public class Logger {
     private final org.slf4j.Logger logger;
@@ -53,36 +40,6 @@ public class Logger {
         return logger.getName();
     }
 
-    /**
-     * @deprecated use {@link #traceWithParams(String, Object...)} instead.
-     */
-    @Deprecated
-    public void trace(String message, Object... arguments) {
-        if (!logger.isTraceEnabled()) {
-            return;
-        }
-        try {
-            logger.trace(buildLogMessage(message, arguments));
-        } catch (IllegalArgumentException e) {
-            logMessageAssemblyFailure(message, arguments);
-        }
-    }
-
-    /**
-     * @deprecated use {@link #traceWithParams(String, Throwable, Object...)} instead.
-     */
-    @Deprecated
-    public void trace(String message, Throwable t, Object... arguments) {
-        if (!logger.isTraceEnabled()) {
-            return;
-        }
-        try {
-            logger.trace(buildLogMessage(message, arguments), t);
-        } catch (IllegalArgumentException e) {
-            logMessageAssemblyFailure(message, arguments);
-            logger.trace(message, t);
-        }
-    }
 
     public void traceWithParams(String message, Object... arguments) {
         if (!logger.isTraceEnabled()) {
@@ -107,36 +64,6 @@ public class Logger {
         }
     }
 
-    /**
-     * @deprecated use {@link #debugWithParams(String, Object...)} instead.
-     */
-    @Deprecated
-    public void debug(String message, Object... arguments) {
-        if (!logger.isDebugEnabled()) {
-            return;
-        }
-        try {
-            logger.debug(buildLogMessage(message, arguments));
-        } catch (IllegalArgumentException e) {
-            logMessageAssemblyFailure(message, arguments);
-        }
-    }
-
-    /**
-     * @deprecated use {@link #debugWithParams(String, Throwable, Object...)} instead.
-     */
-    @Deprecated
-    public void debug(String message, Throwable t, Object... arguments) {
-        if (!logger.isDebugEnabled()) {
-            return;
-        }
-        try {
-            logger.debug(buildLogMessage(message, arguments), t);
-        } catch (IllegalArgumentException e) {
-            logMessageAssemblyFailure(message, arguments);
-            logger.debug(message, t);
-        }
-    }
 
     public void debugWithParams(String message, Object... arguments) {
         if (!logger.isDebugEnabled()) {
@@ -158,37 +85,6 @@ public class Logger {
         } catch (IllegalArgumentException e) {
             logMessageAssemblyFailure(message, arguments);
             logger.debug(message, t);
-        }
-    }
-
-    /**
-     * @deprecated use {@link #infoWithParams(String, Object...)} instead.
-     */
-    @Deprecated
-    public void info(String message, Object... arguments) {
-        if (!logger.isInfoEnabled()) {
-            return;
-        }
-        try {
-            logger.info(buildLogMessage(message, arguments));
-        } catch (IllegalArgumentException e) {
-            logMessageAssemblyFailure(message, arguments);
-        }
-    }
-
-    /**
-     * @deprecated use {@link #infoWithParams(String, Throwable, Object...)} instead.
-     */
-    @Deprecated
-    public void info(String message, Throwable t, Object... arguments) {
-        if (!logger.isInfoEnabled()) {
-            return;
-        }
-        try {
-            logger.info(buildLogMessage(message, arguments), t);
-        } catch (IllegalArgumentException e) {
-            logMessageAssemblyFailure(message, arguments);
-            logger.info(message, t);
         }
     }
 
@@ -215,37 +111,6 @@ public class Logger {
         }
     }
 
-    /**
-     * @deprecated use {@link #warnWithParams(String, Object...)} instead.
-     */
-    @Deprecated
-    public void warn(String message, Object... arguments) {
-        if (!logger.isWarnEnabled()) {
-            return;
-        }
-        try {
-            logger.warn(buildLogMessage(message, arguments));
-        } catch (IllegalArgumentException e) {
-            logMessageAssemblyFailure(message, arguments);
-        }
-    }
-
-    /**
-     * @deprecated use {@link #warnWithParams(String, Throwable, Object...)} instead.
-     */
-    @Deprecated
-    public void warn(String message, Throwable t, Object... arguments) {
-        if (!logger.isWarnEnabled()) {
-            return;
-        }
-        try {
-            logger.warn(buildLogMessage(message, arguments), t);
-        } catch (IllegalArgumentException e) {
-            logMessageAssemblyFailure(message, arguments);
-            logger.warn(message, t);
-        }
-    }
-
     public void warnWithParams(String message, Object... arguments) {
         if (!logger.isWarnEnabled()) {
             return;
@@ -266,37 +131,6 @@ public class Logger {
         } catch (IllegalArgumentException e) {
             logMessageAssemblyFailure(message, arguments);
             logger.warn(message, t);
-        }
-    }
-
-    /**
-     * @deprecated use {@link #errorWithParams(String, Object...)} instead.
-     */
-    @Deprecated
-    public void error(String message, Object... arguments) {
-        if (!logger.isErrorEnabled()) {
-            return;
-        }
-        try {
-            logger.error(buildLogMessage(message, arguments));
-        } catch (IllegalArgumentException e) {
-            logMessageAssemblyFailure(message, arguments);
-        }
-    }
-
-    /**
-     * @deprecated use {@link #errorWithParams(String, Throwable, Object...)} instead.
-     */
-    @Deprecated
-    public void error(String message, Throwable t, Object... arguments) {
-        if (!logger.isErrorEnabled()) {
-            return;
-        }
-        try {
-            logger.error(buildLogMessage(message, arguments), t);
-        } catch (IllegalArgumentException e) {
-            logMessageAssemblyFailure(message, arguments);
-            logger.error(message, t);
         }
     }
 

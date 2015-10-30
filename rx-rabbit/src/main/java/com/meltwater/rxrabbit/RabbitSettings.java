@@ -24,21 +24,10 @@ import java.util.Map;
  * @see {@link PublisherFactory}
  * @see {https://www.rabbitmq.com/uri-query-parameters.html}
  */
-//TODO we probably should have a list of 'connection' urls + A Map<String,Object> for the other settings - this way we do not have to duplicate all the url params
 public class RabbitSettings {
 
     private final static Logger log = new Logger(PublisherFactory.class);
     private final static ObjectMapper mapper = new ObjectMapper();
-
-    public final static String heartbeat_param                 = "heartbeat";
-    public final static String pre_fetch_count_param           = "pre_fetch_count";
-    public final static String connection_timeout_param        = "connection_timeout";
-    public final static String shutdown_timeout_millis_param   = "shutdown_timeout_millis";
-    public final static String consume_channels_param          = "consume_channels";
-    public final static String publish_channels_param          = "publish_channels";
-    public final static String frame_max_param                 = "frame_max";
-    public final static String close_timeout_millis_param      = "close_timeout_millis";
-    public final static String publisher_confirms_param        = "publisher_confirms";
 
     //NOTE these params are here for reference, but they are not yet implemented
     public final static String channel_max_param = "channel_max"; //NOTE we use consume/publish_channels instead
@@ -48,35 +37,57 @@ public class RabbitSettings {
     public final static String verify_param = "verify";
     public final static String fail_if_no_peer_cert_param = "fail_if_no_peer_cert";
 
-    public static final int DEFAULT_CONSUME_CHANNELS        = 1;
-    public static final int DEFAULT_PUBLISH_CHANNELS        = 1;
-    public static final int DEFAULT_PRE_FETCH               = 0;
+    public static final int DEFAULT_NUM_CHANNELS            = 1;
+    public static final int DEFAULT_PRE_FETCH               = 0; //no pre-fetch
     public static final int DEFAULT_CLOSE_TIMEOUT_MILLIS    = 30_000;
+    public static final int DEFAULT_HEARTBEAT               = 5;
+    public static final int DEFAULT_CONNECTION_TIMEOUT      = 10_000;
+    public static final int RETRY_COUNT                     = 0; //= forever
+    public static final int DEFAULT_PUBLISH_TIMEOUT_SECS    = 20;
     public static final boolean DEFAULT_PUBLISHER_CONFIRMS  = false;
 
+    public final static String heartbeat_param                 = "heartbeat";
+    public final static String pre_fetch_count_param           = "pre_fetch_count";
+    public final static String connection_timeout_param        = "connection_timeout_millis";
+    public final static String shutdown_timeout_param          = "shutdown_timeout_millis";
+    public final static String num_channels_param              = "num_channels";
+    public final static String retry_count_param               = "retry_count";
+    public final static String publish_timeout_secs_param      = "publish_timeout_secs";
+    public final static String frame_max_param                 = "frame_max";
+    public final static String close_timeout_millis_param      = "close_timeout_millis";
+    public final static String handshake_timeout_millis_param  = "handshake_timeout_millis";
+    public final static String publisher_confirms_param        = "publisher_confirms";
+
+    //TODO javadoc the settings!!
+    //NOTE 0 means forever for all timeout settings
     public final int heartbeat;
     public final int pre_fetch_count;
-    public final int connection_timeout;
+    public final int connection_timeout_millis;
     public final int shutdown_timeout_millis;
-    public final int consume_channels;
-    public final int publish_channels;
+    public final int num_channels;
+    public final int retry_count;
+    public final int publish_timeout_secs;
     public final int frame_max;
-    public final int close_timeout_millis; // 0 or negative values means forever..
+    public final int close_timeout_millis;
+    public final int handshake_timeout_millis;
+
     public final boolean publisher_confirms;
 
-    public final String appId;
+    public final String app_instance_id;
 
-    private RabbitSettings(boolean publisherConfirms, int preFetchCount, int heartbeat, int connectionTimeout, int shutdownTimeout, String appId, int closeTimeout, int consume_channels, int publish_channels, int frame_max) {
+    private RabbitSettings(String appId, boolean publisherConfirms, int preFetchCount, int heartbeat, int connectionTimeout, int shutdownTimeout, int retryCount, int closeTimeout, int numChannels, int publishTimeoutSecs, int frameMax, int handshakeTimeout) {
         this.publisher_confirms = publisherConfirms;
         this.pre_fetch_count = preFetchCount;
         this.heartbeat = heartbeat;
-        this.connection_timeout = connectionTimeout;
+        this.connection_timeout_millis = connectionTimeout;
         this.shutdown_timeout_millis = shutdownTimeout;
-        this.appId = appId;
+        this.retry_count = retryCount;
+        this.app_instance_id = appId;
         this.close_timeout_millis = closeTimeout;
-        this.consume_channels = consume_channels;
-        this.publish_channels = publish_channels;
-        this.frame_max = frame_max;
+        this.num_channels = numChannels;
+        publish_timeout_secs = publishTimeoutSecs;
+        this.frame_max = frameMax;
+        this.handshake_timeout_millis = handshakeTimeout;
     }
 
     @Override
@@ -93,20 +104,22 @@ public class RabbitSettings {
         private boolean publisherConfirms   = DEFAULT_PUBLISHER_CONFIRMS;
         private int closeTimeout            = DEFAULT_CLOSE_TIMEOUT_MILLIS;
         private int preFetchCount           = DEFAULT_PRE_FETCH;
-        private int heartbeat               = ConnectionFactory.DEFAULT_HEARTBEAT;
-        private int connectionTimeout       = 10_000;
+        private int heartbeat               = DEFAULT_HEARTBEAT;
+        private int connectionTimeout       = DEFAULT_CONNECTION_TIMEOUT;
         private int shutdownTimeout         = ConnectionFactory.DEFAULT_SHUTDOWN_TIMEOUT;
-        private int consumeChannels         = DEFAULT_CONSUME_CHANNELS;
-        private int publishChannels         = DEFAULT_PUBLISH_CHANNELS;
+        private int numChannels             = DEFAULT_NUM_CHANNELS;
         private int frameMax                = ConnectionFactory.DEFAULT_FRAME_MAX;
+        private int handshakeTimeout        = ConnectionFactory.DEFAULT_HANDSHAKE_TIMEOUT;
+        private int retryCount              = RETRY_COUNT;
+        private int publishTimeoutSecs      = DEFAULT_PUBLISH_TIMEOUT_SECS;
 
-        private String appId                = "unknown"; //TODO calculate the appID from the host+component etc!!
+        private String appId                = "unknown";
 
         /**
          * Fills in the values supplied in the JSON formatted string. The available parameter values
          *
          * @param settingsJSONString
-         * @return
+         * @return this builder with all the values provided in the JSON filled in
          */
         public Builder withSettingsJSON(String settingsJSONString){
             if (!settingsJSONString.startsWith("{")){
@@ -123,6 +136,18 @@ public class RabbitSettings {
                     closeTimeout = Integer.parseInt(map.get(close_timeout_millis_param));
                     assert closeTimeout>=0;
                 }
+                if (map.containsKey(publish_timeout_secs_param)) {
+                    publishTimeoutSecs = Integer.parseInt(map.get(publish_timeout_secs_param));
+                    assert publishTimeoutSecs>=0;
+                }
+                if (map.containsKey(handshake_timeout_millis_param)) {
+                    handshakeTimeout = Integer.parseInt(map.get(handshake_timeout_millis_param));
+                    assert handshakeTimeout>=0;
+                }
+                if (map.containsKey(retry_count_param)) {
+                    retryCount = Integer.parseInt(map.get(retry_count_param));
+                    assert retryCount>=0;
+                }
                 if (map.containsKey(pre_fetch_count_param)) {
                     preFetchCount = Integer.parseInt(map.get(pre_fetch_count_param));
                     assert preFetchCount>=0;
@@ -135,28 +160,27 @@ public class RabbitSettings {
                     connectionTimeout = Integer.parseInt(map.get(connection_timeout_param));
                     assert connectionTimeout>=0;
                 }
-                if (map.containsKey(shutdown_timeout_millis_param)) {
-                    shutdownTimeout = Integer.parseInt(map.get(shutdown_timeout_millis_param));
+                if (map.containsKey(shutdown_timeout_param)) {
+                    shutdownTimeout = Integer.parseInt(map.get(shutdown_timeout_param));
                     assert shutdownTimeout>=0;
                 }
-                if (map.containsKey(consume_channels_param)) {
-                    consumeChannels = Integer.parseInt(map.get(consume_channels_param));
-                    assert consumeChannels >=0;
-                }
-                if (map.containsKey(publish_channels_param)) {
-                    publishChannels = Integer.parseInt(map.get(publish_channels_param));
-                    assert publishChannels >=0;
+                if (map.containsKey(num_channels_param)) {
+                    numChannels = Integer.parseInt(map.get(num_channels_param));
+                    assert numChannels >=0;
                 }
                 if (map.containsKey(frame_max_param)) {
                     frameMax = Integer.parseInt(map.get(frame_max_param));
                     assert frameMax>=0;
                 }
-
             } catch (Exception e) {
                 log.warnWithParams("Could not parse settings string. Will fall back to default values.", "error", e.getMessage());
             }
 
             return this;
+        }
+
+        public RabbitSettings build() {
+            return new RabbitSettings(appId, publisherConfirms, preFetchCount, heartbeat, connectionTimeout, shutdownTimeout, retryCount, closeTimeout, numChannels, publishTimeoutSecs, frameMax, handshakeTimeout);
         }
 
         public Builder withPublisherConfirms(boolean publisherConfirms) {
@@ -189,13 +213,8 @@ public class RabbitSettings {
             return this;
         }
 
-        public Builder withConsumeChannels(int consumeChannels) {
-            this.consumeChannels = consumeChannels;
-            return this;
-        }
-
-        public Builder withPublishChannels(int publishChannels) {
-            this.publishChannels = publishChannels;
+        public Builder withNumChannels(int consumeChannels) {
+            this.numChannels = consumeChannels;
             return this;
         }
 
@@ -204,8 +223,14 @@ public class RabbitSettings {
             return this;
         }
 
-        public RabbitSettings build() {
-            return new RabbitSettings(publisherConfirms, preFetchCount, heartbeat, connectionTimeout, shutdownTimeout, appId, closeTimeout, consumeChannels, publishChannels, frameMax);
+        public Builder withPublishTimeoutSecs(int publishTimeoutSecs) {
+            this.publishTimeoutSecs = publishTimeoutSecs;
+            return this;
+        }
+
+        public Builder withRetryCount(int retryCount) {
+            this.retryCount = retryCount;
+            return this;
         }
     }
 }

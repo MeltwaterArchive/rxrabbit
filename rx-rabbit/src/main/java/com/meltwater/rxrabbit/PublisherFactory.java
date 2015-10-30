@@ -1,15 +1,19 @@
 package com.meltwater.rxrabbit;
 
 import com.meltwater.rxrabbit.impl.DefaultChannelFactory;
+import com.meltwater.rxrabbit.impl.RoundRobinPublisher;
+import com.meltwater.rxrabbit.impl.SingleChannelConsumer;
 import com.meltwater.rxrabbit.impl.SingleChannelPublisher;
 import com.meltwater.rxrabbit.util.DockerAwareHostnameProvider;
 import com.meltwater.rxrabbit.util.Logger;
 import com.timgroup.statsd.NoOpStatsDClient;
 import com.timgroup.statsd.NonBlockingStatsDClient;
 import com.timgroup.statsd.StatsDClient;
+import rx.Observable;
 import rx.Scheduler;
 import rx.schedulers.Schedulers;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class PublisherFactory {
@@ -19,10 +23,7 @@ public class PublisherFactory {
     private RabbitSettings settings;
     private ChannelFactory channelFactory;
     private Scheduler producerScheduler = Schedulers.io();
-    private int maxRetryAttempts = 5;
 
-    private int publishTimeoutSeconds = 60; //five minutes
-    private int cleanupTimeoutCacheIntervalSec = 15;
     private int statsDPort = 8125;
     private String statsDHost;
 
@@ -30,7 +31,7 @@ public class PublisherFactory {
 
     }
 
-    public PublisherFactory(List<BrokerAddress> brokerAddresses, RabbitSettings settings) {
+    public PublisherFactory(BrokerAddresses brokerAddresses, RabbitSettings settings) {
         this.settings = settings;
         this.channelFactory = new DefaultChannelFactory(brokerAddresses, settings);
     }
@@ -44,25 +45,35 @@ public class PublisherFactory {
         StatsDClient statsDClient;
 
         if(statsDHost == null){
-            log.warnWithParams("Creating publisher with no-op StatsDClient");
+            log.warnWithParams("Creating publisher with no-op metrics client.",
+                    "publishChannels", settings.num_channels,
+                    "publisherConfirms", settings.publisher_confirms
+            );
             statsDClient = new NoOpStatsDClient();
         }
         else {
-            String prefix = DockerAwareHostnameProvider.getApplicationHostName() +  "." + settings.appId + "." + exchange;
-            log.infoWithParams("Creating publisher with StatsDClient",
+            String prefix = DockerAwareHostnameProvider.getApplicationHostName() +  "." + settings.app_instance_id + "." + exchange;
+            log.infoWithParams("Creating publisher with statsD metrics client",
+                    "publishChannels", settings.num_channels,
+                    "publisherConfirms", settings.publisher_confirms,
                     "statsDHost", statsDHost,
                     "statsDPort", statsDPort,
                     "metricsPrefix", prefix);
             statsDClient = new NonBlockingStatsDClient(prefix, statsDHost,statsDPort);
         }
-        return new SingleChannelPublisher(
-                channelFactory,
-                exchange,
-                maxRetryAttempts,
-                producerScheduler,
-                statsDClient,
-                publishTimeoutSeconds,
-                cleanupTimeoutCacheIntervalSec);
+        List<RabbitPublisher> publishers = new ArrayList<>();
+        for(int i=0; i<settings.num_channels; i++){
+            publishers.add(new SingleChannelPublisher(
+                    channelFactory,
+                    exchange,
+                    settings.retry_count,
+                    producerScheduler,
+                    statsDClient,
+                    settings.publish_timeout_secs,
+                    settings.close_timeout_millis,
+                    1));
+        }
+        return new RoundRobinPublisher(publishers);
     }
 
     public PublisherFactory setSettings(RabbitSettings settings) {
@@ -89,17 +100,6 @@ public class PublisherFactory {
     public PublisherFactory setStatsDHost(String statsDHost){
         assert statsDHost!=null;
         this.statsDHost = statsDHost;
-        return this;
-    }
-
-    public PublisherFactory setMaxRetryAttempts(int maxRetryAttempts){
-        assert maxRetryAttempts >0;
-        this.maxRetryAttempts = maxRetryAttempts;
-        return this;
-    }
-
-    public PublisherFactory setPublishTimeoutSeconds(int publishTimeoutSeconds) {
-        this.publishTimeoutSeconds = publishTimeoutSeconds;
         return this;
     }
 

@@ -3,7 +3,7 @@ package com.meltwater.rxrabbit.metrics;
 
 import com.timgroup.statsd.StatsDClient;
 
-//TODO should not be open sourced
+//TODO should NOT be open sourced
 public class RxStatsDMetricsReporter implements RxRabbitMetricsReporter{
     private final StatsDClient client;
     private final String prefix;

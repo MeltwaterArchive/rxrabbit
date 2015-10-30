@@ -13,9 +13,10 @@ public class RxStatsDMetricsReporter implements RxRabbitMetricsReporter{
         this.prefix = prefix;
     }
 
+
     @Override
     public void reportCount(String counterName, int count) {
-        this.client.count(this.prefix + counterName, count);
+        this.client.count(this.prefix + counterName, (long)count);
     }
 
     @Override

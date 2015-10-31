@@ -7,11 +7,15 @@ public interface Acknowledger {
 
 	/**
 	 * Call to indicate that the operation succeeded.
+	 *
+	 * @see ConsumeChannel#basicAck(long, boolean)
 	 */
 	void onDone();
 
 	/**
 	 * Call to indicate that the operation failed.
+	 *
+	 * @see ConsumeChannel#basicNack(long, boolean)
 	 */
 	void onFail();
 

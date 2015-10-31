@@ -15,8 +15,14 @@ public class RoundRobinPublisher implements RabbitPublisher {
     private final Iterator<RabbitPublisher> publisherIterator;
 
     public RoundRobinPublisher(List<RabbitPublisher> backingPublishers) {
+        assert !backingPublishers.isEmpty();
         this.backingPublishers = backingPublishers;
         this.publisherIterator = Iterables.cycle(backingPublishers).iterator();
+    }
+
+    @Override
+    public String getExchange() {
+        return backingPublishers.get(0).getExchange();
     }
 
     @Override

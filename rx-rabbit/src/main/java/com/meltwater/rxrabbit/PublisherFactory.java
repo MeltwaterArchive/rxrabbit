@@ -16,6 +16,9 @@ import rx.schedulers.Schedulers;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Can create {@link RabbitPublisher}s using the supplied {@link RabbitSettings} and {@link BrokerAddresses} settings.
+ */
 public class PublisherFactory {
 
     private final Logger log = new Logger(PublisherFactory.class);

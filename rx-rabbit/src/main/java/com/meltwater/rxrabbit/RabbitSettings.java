@@ -9,16 +9,18 @@ import java.util.Map;
 
 /**
  * This class contains rabbitmq connection settings. Some settings are part of the official AMQP URI spec v 0-9-1,
- * others are domain specific to this library and is used to configure different parts of the library behaviors.
+ * others are domain specific to this library and is used to configure the {@link ConnectionFactory} and {@link PublisherFactory}.
  *
  * Some settings are only relevant for consumers, some are only relevant for producers and some are used by
  * both consumers and publishers.
  *
  * This object can be built pragmatically by using the various {@link RabbitSettings.Builder}
- * withX methods or by supplying a JSON formatted String to the {@link RabbitSettings.Builder#withSettingsJSON(String)} method.
+ * withXX methods or by supplying a JSON formatted String to the {@link RabbitSettings.Builder#withSettingsJSON(String)} method.
  *
- * The available JSON parameter names are included as String constants in this class as well as being the name of the fields in this class.
- * The {@link #toString()} method also shows the JSON representation of this class and can be used as input to the builder withSettingsJSON method.
+ * The available JSON parameter names are included as String constants but they also directly corresponds to the names of the fields in this class.
+ *
+ * The {@link #toString()} method shows the JSON representation of this class and can be used as input to the
+ * {@link RabbitSettings.Builder#withSettingsJSON(String)} method. method.
  *
  * @see {@link ConsumerFactory}
  * @see {@link PublisherFactory}

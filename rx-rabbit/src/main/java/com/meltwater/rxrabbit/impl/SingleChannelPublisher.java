@@ -97,6 +97,11 @@ public class SingleChannelPublisher implements RabbitPublisher{
 
 
     @Override
+    public String getExchange() {
+        return exchange;
+    }
+
+    @Override
     public Single<Void> publish(String routingKey, AMQP.BasicProperties props, byte[] payload){
         return publish(routingKey, props, payload, 1, 0);
     }

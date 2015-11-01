@@ -60,7 +60,7 @@ public class ConsumerFactory {
             consumers.add(new SingleChannelConsumer(
                     channelFactory,
                     queue,
-                    settings.app_instance_id +"+"+queue+"-consumer",
+                    settings.app_instance_id +"{"+queue+"}-consumer",
                     settings.retry_count,
                     settings.close_timeout_millis,
                     consumerScheduler,

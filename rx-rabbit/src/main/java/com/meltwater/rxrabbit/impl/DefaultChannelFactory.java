@@ -176,7 +176,7 @@ public class DefaultChannelFactory implements ChannelFactory {
         String connectionName = settings.app_instance_id + "-" + connectionType;
         DateTime startTime = new DateTime(DateTimeZone.UTC);
 
-        HashMap<String, String> clientProperties = new HashMap<>();
+        Map<String, Object> clientProperties = new HashMap<>();
         clientProperties.put("appId", settings.app_instance_id);
         clientProperties.put("name", connectionName);
         clientProperties.put("connectTime", startTime.toString());
@@ -194,6 +194,7 @@ public class DefaultChannelFactory implements ChannelFactory {
         cf.setShutdownTimeout(settings.shutdown_timeout_millis);
         cf.setRequestedFrameMax(settings.frame_max);
         cf.setHandshakeTimeout(settings.handshake_timeout_millis);
+        cf.setClientProperties(clientProperties);
         //cf.setSocketConfigurator(); NOTE is this worth investigating??
         cf.setRequestedChannelMax(0);//Hard coded ..
         cf.setAutomaticRecoveryEnabled(false);//Hard coded ..

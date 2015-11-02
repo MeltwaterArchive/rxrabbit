@@ -1,13 +1,11 @@
 package com.meltwater.rxrabbit;
 
 import com.rabbitmq.client.AMQP;
-import rx.Observable;
 import rx.Single;
 import rx.functions.Func4;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.concurrent.TimeoutException;
 
 /**
  * A publisher can publish amqp messages to an amqp exchange.

@@ -3,7 +3,6 @@ package com.meltwater.rxrabbit;
 import com.rabbitmq.client.Consumer;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  * Interface wrapping a {@link com.rabbitmq.client.Channel} that allows consume operations.

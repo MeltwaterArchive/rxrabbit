@@ -147,7 +147,7 @@ public class DefaultChannelFactory implements ChannelFactory {
 
         info.channels.add(channel);
 
-        //TODO move these to the respective Consumer/Producer
+        //TODO move these things to the Consumer/Producer
         if (type.equals(ChannelType.consume)){
             if (settings.pre_fetch_count >0){
                 innerChannel.basicQos(settings.pre_fetch_count);

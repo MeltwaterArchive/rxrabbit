@@ -99,6 +99,9 @@ public class SingleChannelConsumer implements RabbitConsumer {
                 .doOnUnsubscribe(() -> {
                     close(consumerRef);
                 });
+
+        //TODO add onBackpessure handling here!!
+        //TODO
     }
 
     private synchronized void terminate(AtomicBoolean started, AtomicReference<InternalConsumer> consumer) {

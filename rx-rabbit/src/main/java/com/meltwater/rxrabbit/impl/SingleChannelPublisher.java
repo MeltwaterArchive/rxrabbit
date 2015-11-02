@@ -4,8 +4,11 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalCause;
 import com.meltwater.rxrabbit.ChannelFactory;
+import com.meltwater.rxrabbit.Exchange;
+import com.meltwater.rxrabbit.Payload;
 import com.meltwater.rxrabbit.PublishChannel;
 import com.meltwater.rxrabbit.RabbitPublisher;
+import com.meltwater.rxrabbit.RoutingKey;
 import com.meltwater.rxrabbit.metrics.RxRabbitMetricsReporter;
 import com.meltwater.rxrabbit.metrics.RxStatsDMetricsReporter;
 import com.meltwater.rxrabbit.util.Fibonacci;
@@ -28,11 +31,10 @@ import java.util.concurrent.atomic.AtomicLong;
 
 //TODO javadoc
 //TODO needs some code cleanup and better method names etc..
-public class SingleChannelPublisher implements RabbitPublisher{
+public class SingleChannelPublisher implements RabbitPublisher {
 
     private static final Logger log = new Logger(SingleChannelPublisher.class);
 
-    private final String exchange;
     private final int maxRetries;
     private final long closeTimeoutMillis;
 
@@ -57,7 +59,6 @@ public class SingleChannelPublisher implements RabbitPublisher{
                                   long closeTimeoutMillis,
                                   long cleanupTimeoutCacheIntervalSec) {
         this.channelFactory = channelFactory;
-        this.exchange = exchange;
         this.maxRetries = maxRetries;
         this.closeTimeoutMillis = closeTimeoutMillis;
         this.publishWorker = scheduler.createWorker();
@@ -99,30 +100,33 @@ public class SingleChannelPublisher implements RabbitPublisher{
 
 
     @Override
-    public String getExchange() {
-        return exchange;
+    public Single<Void> call(Exchange exchange, RoutingKey routingKey, AMQP.BasicProperties basicProperties, Payload payload) {
+        return publish(exchange, routingKey, basicProperties, payload, 1, 0);
     }
 
-    @Override
-    public Single<Void> publish(String routingKey, AMQP.BasicProperties props, byte[] payload){
-        return publish(routingKey, props, payload, 1, 0);
+    private Single<Void> publish(Exchange exchange, RoutingKey routingKey, AMQP.BasicProperties props, Payload payload, int attempt, int delaySec){
+        return Single.<Void>create(subscriber -> schedulePublish(exchange, routingKey, props, payload, attempt, delaySec, subscriber, metricsReporter));
     }
 
-    private Single<Void> publish(final String routingKey, final AMQP.BasicProperties props, final byte[] payload, int attempt, int delaySec){
-        return Single.<Void>create(subscriber -> schedulePublish(routingKey, props, payload, attempt, delaySec, subscriber, metricsReporter));
-    }
-
-    private Subscription schedulePublish(String routingKey,
+    private Subscription schedulePublish(Exchange exchange,
+                                         RoutingKey routingKey,
                                          AMQP.BasicProperties props,
-                                         byte[] payload, int attempt,
-                                         int delaySec, SingleSubscriber<? super Void> subscriber,
+                                         Payload payload,
+                                         int attempt,
+                                         int delaySec,
+                                         SingleSubscriber<? super Void> subscriber,
                                          RxRabbitMetricsReporter metricsReporter) {
 
         long schedulingStart = System.currentTimeMillis();
         return publishWorker.schedule(() -> {
             synchronized (this) {    //TODO make this method prettier..
                 final long publishStart = System.currentTimeMillis();
-                UnconfirmedMessage message = new UnconfirmedMessage(subscriber, routingKey, props, payload, schedulingStart, attempt);
+                UnconfirmedMessage message = new UnconfirmedMessage(subscriber,
+                        exchange.name,
+                        routingKey.value,
+                        props, payload.data,
+                        schedulingStart,
+                        attempt);
                 long seqNo = 0;
                 try {
                     seqNo = getChannel().getNextPublishSeqNo();
@@ -147,11 +151,11 @@ public class SingleChannelPublisher implements RabbitPublisher{
                             "basicProperties", props
                     );
                     //TODO handle publishConfirm = false
-                    getChannel().basicPublish(exchange, routingKey, props, payload);
+                    getChannel().basicPublish(exchange.name, routingKey.value, props, payload.data);
                     message.setPublished(true);
                     tagToMessage.put(internalSeqNr, message);
                     metricsReporter.reportCount("sent");
-                    metricsReporter.reportCount("sent-bytes", payload.length);
+                    metricsReporter.reportCount("sent-bytes", payload.data.length);
                     message.setPublishCompletedTime(System.currentTimeMillis());
                     metricsReporter.reportCount("basic-publish-done");
                     metricsReporter.reportTime("basic-publish-took-ms", System.currentTimeMillis() - publishStart);
@@ -173,8 +177,8 @@ public class SingleChannelPublisher implements RabbitPublisher{
             for (int i = 0; i < maxRetries || maxRetries<=0; i++) {
                 try {
                     Thread.sleep(Fibonacci.getDelayMillis(i));
-                    log.infoWithParams("Creating publish channel.", "exchange", exchange);
-                    this.channel = channelFactory.createPublishChannel(exchange);
+                    log.infoWithParams("Creating publish channel.");
+                    this.channel = channelFactory.createPublishChannel();
                     channel.addConfirmListener(confirmListener());
                     break;
                 } catch (Exception ignored) {
@@ -281,6 +285,7 @@ public class SingleChannelPublisher implements RabbitPublisher{
 
         final byte[] payload;
         final String routingKey;
+        final String exchange;
         final AMQP.BasicProperties props;
         final SingleSubscriber<? super Void> subscriber;
         final int attempt;
@@ -290,7 +295,14 @@ public class SingleChannelPublisher implements RabbitPublisher{
 
         private long publishCompletedTime;
 
-        public UnconfirmedMessage(SingleSubscriber<? super Void> subscriber, String routingKey, AMQP.BasicProperties props, byte[] payload, long messageCreationTime, int attempt) {
+        public UnconfirmedMessage(SingleSubscriber<? super Void> subscriber,
+                                  String exchange,
+                                  String routingKey,
+                                  AMQP.BasicProperties props,
+                                  byte[] payload,
+                                  long messageCreationTime,
+                                  int attempt) {
+            this.exchange = exchange;
             this.payload = payload;
             this.subscriber = subscriber;
             this.routingKey = routingKey;
@@ -329,7 +341,7 @@ public class SingleChannelPublisher implements RabbitPublisher{
                         "failedAttempts", attempt,
                         "basicProperties", props
                 );
-                schedulePublish(routingKey, props, payload, attempt + 1, delaySec, subscriber, metricsReporter);
+                schedulePublish(new Exchange(exchange), new RoutingKey(routingKey), props, new Payload(payload), attempt + 1, delaySec, subscriber, metricsReporter);
             }else{
                 if(publishCompletedTime > 0){
                     //this means that the message was published, but not confirmed

@@ -16,21 +16,21 @@ public class RxStatsDMetricsReporter implements RxRabbitMetricsReporter{
 
     @Override
     public void reportCount(String counterName, int count) {
-        this.client.count(this.prefix + counterName, (long)count);
+        this.client.count(this.prefix + "." + counterName, (long)count);
     }
 
     @Override
     public void reportCount(String counterName) {
-        this.client.incrementCounter(this.prefix + counterName);
+        this.client.incrementCounter(this.prefix + "." + counterName);
     }
 
     @Override
     public void reportGauge(String gaugeName, int value) {
-        this.client.recordGaugeValue(this.prefix + gaugeName, value);
+        this.client.recordGaugeValue(this.prefix + "." + gaugeName, value);
     }
     @Override
     public void reportTime(String timerName, long time) {
-        this.client.recordExecutionTime(this.prefix + timerName, (int)time);
+        this.client.recordExecutionTime(this.prefix + "." + timerName, (int)time);
     }
 
 }

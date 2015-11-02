@@ -8,7 +8,7 @@ import com.meltwater.rxrabbit.PublishChannel;
 import com.meltwater.rxrabbit.RabbitPublisher;
 import com.meltwater.rxrabbit.metrics.RxRabbitMetricsReporter;
 import com.meltwater.rxrabbit.metrics.RxStatsDMetricsReporter;
-import com.meltwater.rxrabbit.util.DelaySequence;
+import com.meltwater.rxrabbit.util.Fibonacci;
 import com.meltwater.rxrabbit.util.Logger;
 import com.rabbitmq.client.AMQP;
 import com.rabbitmq.client.ConfirmListener;
@@ -74,8 +74,9 @@ public class SingleChannelPublisher implements RabbitPublisher{
                         UnconfirmedMessage message = (UnconfirmedMessage) notification.getValue();
                         if (message != null) { //TODO how can this be null??
                             ackWorker.schedule(() -> {
-                                log.warnWithParams("Message did not receive publish-confirm in time",
-                                        "messageId", message.props.getMessageId());
+                                if (message.published) {
+                                    log.warnWithParams("Message did not receive publish-confirm in time", "messageId", message.props.getMessageId());
+                                } //TODO send metric on the timeout event
                                 message.nack(new TimeoutException("Message did not receive publish confirm in time"));
                             });
                         }
@@ -86,9 +87,10 @@ public class SingleChannelPublisher implements RabbitPublisher{
         Scheduler.Worker cacheCleanupWorker = scheduler.createWorker();
         cacheCleanupWorker.schedule(() -> Thread.currentThread().setName("cache-cleanup")); //TODO thread name
         cacheCleanupWorker.schedulePeriodically(() -> {
-                    log.debugWithParams("Expiring old timeout cache values",
+                    /*log.debugWithParams("Expiring old timeout cache values",
                             "cacheSize", tagToMessage.size()
                     );
+                    */
                     tagToMessage.cleanUp();
                 },
                 cleanupTimeoutCacheIntervalSec,
@@ -146,10 +148,11 @@ public class SingleChannelPublisher implements RabbitPublisher{
                     );
                     //TODO handle publishConfirm = false
                     getChannel().basicPublish(exchange, routingKey, props, payload);
+                    message.setPublished(true);
                     tagToMessage.put(internalSeqNr, message);
                     metricsReporter.reportCount("sent");
                     metricsReporter.reportCount("sent-bytes", payload.length);
-                    message.setBasicPublishDone();
+                    message.setPublishCompletedTime(System.currentTimeMillis());
                     metricsReporter.reportCount("basic-publish-done");
                     metricsReporter.reportTime("basic-publish-took-ms", System.currentTimeMillis() - publishStart);
                 } catch (Exception e) {
@@ -167,9 +170,9 @@ public class SingleChannelPublisher implements RabbitPublisher{
 
     private synchronized PublishChannel getChannel() throws IOException, TimeoutException {
         if (channel==null){
-            for (int i = 0; i < maxRetries; i++) {
+            for (int i = 0; i < maxRetries || maxRetries<=0; i++) {
                 try {
-                    Thread.sleep(DelaySequence.getDelayMillis(i));
+                    Thread.sleep(Fibonacci.getDelayMillis(i));
                     log.infoWithParams("Creating publish channel.", "exchange", exchange);
                     this.channel = channelFactory.createPublishChannel(exchange);
                     channel.addConfirmListener(confirmListener());
@@ -178,7 +181,7 @@ public class SingleChannelPublisher implements RabbitPublisher{
                     log.warnWithParams("Failed to create connection. will try again.",
                             "attempt", i,
                             "maxAttempts", maxRetries,
-                            "secsUntilNextAttempt", DelaySequence.getDelaySec(i));
+                            "secsUntilNextAttempt", Fibonacci.getDelaySec(i));
                 }
             }
         }
@@ -281,25 +284,28 @@ public class SingleChannelPublisher implements RabbitPublisher{
         final AMQP.BasicProperties props;
         final SingleSubscriber<? super Void> subscriber;
         final int attempt;
-        private final long schedulingStart;
-        private long basicPublishDone;
 
-        public UnconfirmedMessage(SingleSubscriber<? super Void> subscriber, String routingKey, AMQP.BasicProperties props, byte[] payload, long schedulingStart, int attempt) {
+        boolean published = false;
+        private final long messageCreationTime;
+
+        private long publishCompletedTime;
+
+        public UnconfirmedMessage(SingleSubscriber<? super Void> subscriber, String routingKey, AMQP.BasicProperties props, byte[] payload, long messageCreationTime, int attempt) {
             this.payload = payload;
             this.subscriber = subscriber;
             this.routingKey = routingKey;
             this.props = props;
-            this.schedulingStart = schedulingStart;
+            this.messageCreationTime = messageCreationTime;
             this.attempt = attempt;
         }
 
-        public void setBasicPublishDone(){
-            this.basicPublishDone = System.currentTimeMillis();
+        public void setPublishCompletedTime(long time){
+            this.publishCompletedTime = time;
         }
 
         public void ack() {
-            final long  tookTotal = System.currentTimeMillis() - schedulingStart;
-            final long tookConfirm = System.currentTimeMillis() - basicPublishDone;
+            final long  tookTotal = System.currentTimeMillis() - messageCreationTime;
+            final long tookConfirm = System.currentTimeMillis() - publishCompletedTime;
 
             log.traceWithParams("Got successful confirm for published message.",
                     "exchange", exchange,
@@ -312,8 +318,8 @@ public class SingleChannelPublisher implements RabbitPublisher{
         }
 
         public void nack(Exception e) {
-            if (attempt<maxRetries) {
-                int delaySec = DelaySequence.getDelaySec(attempt);
+            if (attempt<maxRetries || maxRetries<=0) {
+                int delaySec = Fibonacci.getDelaySec(attempt);
                 log.warnWithParams("Could not publish message to exchange. Will re-try the publish in a while.",
                         "messageId", props.getMessageId(),
                         "error", e,
@@ -325,14 +331,14 @@ public class SingleChannelPublisher implements RabbitPublisher{
                 );
                 schedulePublish(routingKey, props, payload, attempt + 1, delaySec, subscriber, metricsReporter);
             }else{
-                if(basicPublishDone > 0){
+                if(publishCompletedTime > 0){
                     //this means that the message was published, but not confirmed
-                    metricsReporter.reportTime("publish-confirm-took-ms", System.currentTimeMillis() - basicPublishDone);
+                    metricsReporter.reportTime("publish-confirm-took-ms", System.currentTimeMillis() - publishCompletedTime);
                     metricsReporter.reportCount("confirmed-failed");
                 } else {
                     metricsReporter.reportCount("basic-publish-fail");
                 }
-                final long tookTotal = System.currentTimeMillis() - schedulingStart;
+                final long tookTotal = System.currentTimeMillis() - messageCreationTime;
                 metricsReporter.reportTime("publish-total-took-ms", tookTotal);
                 metricsReporter.reportCount("fail");
                 log.errorWithParams("Could not publish message to exchange. Giving up and reporting error.", e,
@@ -345,6 +351,10 @@ public class SingleChannelPublisher implements RabbitPublisher{
                 );
                 subscriber.onError(e);
             }
+        }
+
+        public void setPublished(boolean published) {
+            this.published = published;
         }
     }
 

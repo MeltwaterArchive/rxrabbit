@@ -1,10 +1,13 @@
 package com.meltwater.rxrabbit;
 
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.meltwater.rxrabbit.util.Logger;
 import com.rabbitmq.client.ConnectionFactory;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -15,12 +18,12 @@ import java.util.Map;
  * both consumers and publishers.
  *
  * This object can be built pragmatically by using the various {@link RabbitSettings.Builder}
- * withXX methods or by supplying a JSON formatted String to the {@link RabbitSettings.Builder#withSettingsJSON(String)} method.
+ * withXX methods or by supplying a JSON formatted String to the {@link RabbitSettings.Builder#setDefaults(String)} method.
  *
  * The available JSON parameter names are included as String constants but they also directly corresponds to the names of the fields in this class.
  *
  * The {@link #toString()} method shows the JSON representation of this class and can be used as input to the
- * {@link RabbitSettings.Builder#withSettingsJSON(String)} method. method.
+ * {@link RabbitSettings.Builder#setDefaults(String)} method. method.
  *
  * @see {@link ConsumerFactory}
  * @see {@link PublisherFactory}
@@ -44,7 +47,7 @@ public class RabbitSettings {
     public static final int DEFAULT_CLOSE_TIMEOUT_MILLIS    = 30_000;
     public static final int DEFAULT_HEARTBEAT               = 5;
     public static final int DEFAULT_CONNECTION_TIMEOUT      = 10_000;
-    public static final int RETRY_COUNT                     = 0; //= forever
+    public static final int DEFAULT_RETRY_COUNT = 0; //= forever
     public static final int DEFAULT_PUBLISH_TIMEOUT_SECS    = 20;
     public static final boolean DEFAULT_PUBLISHER_CONFIRMS  = false;
 
@@ -103,82 +106,57 @@ public class RabbitSettings {
 
     public static class Builder {
 
-        private boolean publisherConfirms   = DEFAULT_PUBLISHER_CONFIRMS;
-        private int closeTimeout            = DEFAULT_CLOSE_TIMEOUT_MILLIS;
-        private int preFetchCount           = DEFAULT_PRE_FETCH;
-        private int heartbeat               = DEFAULT_HEARTBEAT;
-        private int connectionTimeout       = DEFAULT_CONNECTION_TIMEOUT;
-        private int shutdownTimeout         = ConnectionFactory.DEFAULT_SHUTDOWN_TIMEOUT;
-        private int numChannels             = DEFAULT_NUM_CHANNELS;
-        private int frameMax                = ConnectionFactory.DEFAULT_FRAME_MAX;
-        private int handshakeTimeout        = ConnectionFactory.DEFAULT_HANDSHAKE_TIMEOUT;
-        private int retryCount              = RETRY_COUNT;
-        private int publishTimeoutSecs      = DEFAULT_PUBLISH_TIMEOUT_SECS;
+        private boolean publisherConfirms;
+        private int closeTimeout;
+        private int preFetchCount;
+        private int heartbeat;
+        private int connectionTimeout;
+        private int shutdownTimeout;
+        private int numChannels;
+        private int frameMax;
+        private int handshakeTimeout;
+        private int retryCount;
+        private int publishTimeoutSecs;
 
-        private String appId                = "unknown";
+        private String appId;
 
-        /**
-         * Fills in the values supplied in the JSON formatted string. The available parameter values
-         *
-         * @param settingsJSONString
-         * @return this builder with all the values provided in the JSON filled in
-         */
-        public Builder withSettingsJSON(String settingsJSONString){
+
+        public Builder(){
+            setDefaults(new HashMap<>());
+        }
+
+        public Builder(String settingsJSONString) {
+            mapper.configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
+            mapper.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
             if (!settingsJSONString.startsWith("{")){
                 settingsJSONString = "{"+settingsJSONString+"}";
             }
             try {
-                Map<String,String> map = (Map<String,String>)mapper.readValue(settingsJSONString, Map.class);
-                if (map.containsKey(publisher_confirms_param) && (
-                        "true".equals(map.get(publisher_confirms_param).toLowerCase()) ||
-                                "1".equals(map.get(publisher_confirms_param)))) {
-                    publisherConfirms = true;
-                }
-                if (map.containsKey(close_timeout_millis_param)) {
-                    closeTimeout = Integer.parseInt(map.get(close_timeout_millis_param));
-                    assert closeTimeout>=0;
-                }
-                if (map.containsKey(publish_timeout_secs_param)) {
-                    publishTimeoutSecs = Integer.parseInt(map.get(publish_timeout_secs_param));
-                    assert publishTimeoutSecs>=0;
-                }
-                if (map.containsKey(handshake_timeout_millis_param)) {
-                    handshakeTimeout = Integer.parseInt(map.get(handshake_timeout_millis_param));
-                    assert handshakeTimeout>=0;
-                }
-                if (map.containsKey(retry_count_param)) {
-                    retryCount = Integer.parseInt(map.get(retry_count_param));
-                    assert retryCount>=0;
-                }
-                if (map.containsKey(pre_fetch_count_param)) {
-                    preFetchCount = Integer.parseInt(map.get(pre_fetch_count_param));
-                    assert preFetchCount>=0;
-                }
-                if (map.containsKey(heartbeat_param)) {
-                    heartbeat = Integer.parseInt(map.get(heartbeat_param));
-                    assert heartbeat>=0;
-                }
-                if (map.containsKey(connection_timeout_param)) {
-                    connectionTimeout = Integer.parseInt(map.get(connection_timeout_param));
-                    assert connectionTimeout>=0;
-                }
-                if (map.containsKey(shutdown_timeout_param)) {
-                    shutdownTimeout = Integer.parseInt(map.get(shutdown_timeout_param));
-                    assert shutdownTimeout>=0;
-                }
-                if (map.containsKey(num_channels_param)) {
-                    numChannels = Integer.parseInt(map.get(num_channels_param));
-                    assert numChannels >=0;
-                }
-                if (map.containsKey(frame_max_param)) {
-                    frameMax = Integer.parseInt(map.get(frame_max_param));
-                    assert frameMax>=0;
-                }
-            } catch (Exception e) {
-                log.warnWithParams("Could not parse settings string. Will fall back to default values.", "error", e.getMessage());
+                setDefaults(mapper.readValue(settingsJSONString, Map.class));
+            }catch (Exception e){
+                log.errorWithParams("Could not parse settings string.", e);
+                throw new IllegalArgumentException(e);
             }
+        }
 
-            return this;
+        /**
+         * Fills in the values supplied in the JSON formatted string. The available parameter values
+         *
+         * @return this builder with all the values provided in the JSON filled in
+         */
+        private void setDefaults(Map<String,Object> map){
+            publisherConfirms = (boolean) map.getOrDefault(publisher_confirms_param, DEFAULT_PUBLISHER_CONFIRMS);
+            closeTimeout = (int) map.getOrDefault(close_timeout_millis_param, DEFAULT_CLOSE_TIMEOUT_MILLIS);
+            publishTimeoutSecs = (int) map.getOrDefault(publish_timeout_secs_param, DEFAULT_PUBLISH_TIMEOUT_SECS);
+            handshakeTimeout = (int) map.getOrDefault(handshake_timeout_millis_param, ConnectionFactory.DEFAULT_HANDSHAKE_TIMEOUT);
+            retryCount = (int) map.getOrDefault(retry_count_param, DEFAULT_RETRY_COUNT);
+            preFetchCount = (int) map.getOrDefault(pre_fetch_count_param, DEFAULT_PRE_FETCH);
+            heartbeat = (int) map.getOrDefault(heartbeat_param, DEFAULT_HEARTBEAT);
+            connectionTimeout = (int) map.getOrDefault(connection_timeout_param, DEFAULT_CONNECTION_TIMEOUT);
+            shutdownTimeout = (int) map.getOrDefault(shutdown_timeout_param, ConnectionFactory.DEFAULT_SHUTDOWN_TIMEOUT);
+            numChannels = (int) map.getOrDefault(num_channels_param, DEFAULT_NUM_CHANNELS);
+            frameMax = (int) map.getOrDefault(frame_max_param, ConnectionFactory.DEFAULT_FRAME_MAX);
+            appId = "unknown";
         }
 
         public RabbitSettings build() {

@@ -44,6 +44,7 @@ public class PublisherFactory {
         this.channelFactory = channelFactory;
     }
 
+    //TODO weird that exchange is specified both here and when publishing...
     public RabbitPublisher createPublisher(String exchange) {
         StatsDClient statsDClient;
 

@@ -59,7 +59,7 @@ public class PublisherFactory {
         for(int i=0; i<settings.num_channels; i++){
             publishers.add(new SingleChannelPublisher(
                     channelFactory,
-                    exchange,
+                    settings.publisher_confirms,
                     settings.retry_count,
                     producerScheduler,
                     statsDClient,

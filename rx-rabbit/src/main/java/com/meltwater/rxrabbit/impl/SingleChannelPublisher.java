@@ -3,6 +3,7 @@ package com.meltwater.rxrabbit.impl;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalCause;
+import com.google.common.cache.RemovalNotification;
 import com.meltwater.rxrabbit.ChannelFactory;
 import com.meltwater.rxrabbit.Exchange;
 import com.meltwater.rxrabbit.Payload;
@@ -36,66 +37,54 @@ public class SingleChannelPublisher implements RabbitPublisher {
     private static final Logger log = new Logger(SingleChannelPublisher.class);
 
     private final int maxRetries;
+    private final boolean publisherConfirms;
     private final long closeTimeoutMillis;
 
     private final ChannelFactory channelFactory;
     private final RxRabbitMetricsReporter metricsReporter; //TODO use an event callback interface here that handles metrics
 
-    private final Scheduler.Worker publishWorker;
     private final Scheduler.Worker ackWorker;
+    private final Scheduler.Worker publishWorker;
+    private final Scheduler.Worker cacheCleanupWorker;
 
     private final Cache<Long, UnconfirmedMessage> tagToMessage;
     private final AtomicLong largestSeqSeen = new AtomicLong(0);
     private final AtomicLong seqOffset = new AtomicLong(0);
 
+
     private PublishChannel channel = null;
 
     public SingleChannelPublisher(ChannelFactory channelFactory,
-                                  String exchange,
+                                  boolean publisherConfirms,
                                   int maxRetries,
                                   Scheduler scheduler,
                                   StatsDClient statsDClient,
                                   long confirmsTimeoutSec,
                                   long closeTimeoutMillis,
-                                  long cleanupTimeoutCacheIntervalSec) {
+                                  long cacheCleanupTriggerSecs) {
         this.channelFactory = channelFactory;
+        this.publisherConfirms = publisherConfirms;
         this.maxRetries = maxRetries;
         this.closeTimeoutMillis = closeTimeoutMillis;
+
+        this.metricsReporter = new RxStatsDMetricsReporter(statsDClient, "rabbit-publish");
+
         this.publishWorker = scheduler.createWorker();
         publishWorker.schedule(() -> Thread.currentThread().setName("rabbit-send-thread")); //TODO thread name
         this.ackWorker = scheduler.createWorker();
         ackWorker.schedule(() -> Thread.currentThread().setName("rabbit-confirm-thread")); //TODO thread name
-
-        this.metricsReporter = new RxStatsDMetricsReporter(statsDClient, "rabbit-publish");
-
-        this.tagToMessage = CacheBuilder.<Long, UnconfirmedMessage>newBuilder()
-                .expireAfterAccess(confirmsTimeoutSec, TimeUnit.SECONDS)
-                .removalListener(notification -> {
-                    if (notification.getCause().equals(RemovalCause.EXPIRED)) {
-                        UnconfirmedMessage message = (UnconfirmedMessage) notification.getValue();
-                        if (message != null) { //TODO how can this be null??
-                            ackWorker.schedule(() -> {
-                                if (message.published) {
-                                    log.warnWithParams("Message did not receive publish-confirm in time", "messageId", message.props.getMessageId());
-                                } //TODO send metric on the timeout event
-                                message.nack(new TimeoutException("Message did not receive publish confirm in time"));
-                            });
-                        }
-                    }
-                })
-                .build();
-
-        Scheduler.Worker cacheCleanupWorker = scheduler.createWorker();
+        this.cacheCleanupWorker = scheduler.createWorker();
         cacheCleanupWorker.schedule(() -> Thread.currentThread().setName("cache-cleanup")); //TODO thread name
-        cacheCleanupWorker.schedulePeriodically(() -> {
-                    /*log.debugWithParams("Expiring old timeout cache values",
-                            "cacheSize", tagToMessage.size()
-                    );
-                    */
-                    tagToMessage.cleanUp();
-                },
-                cleanupTimeoutCacheIntervalSec,
-                cleanupTimeoutCacheIntervalSec, TimeUnit.SECONDS);
+
+        if (publisherConfirms) {
+            this.tagToMessage = CacheBuilder.<Long, UnconfirmedMessage>newBuilder()
+                    .expireAfterAccess(confirmsTimeoutSec, TimeUnit.SECONDS)
+                    .removalListener(this::handleRemove)
+                    .build();
+            cacheCleanupWorker.schedulePeriodically(tagToMessage::cleanUp, cacheCleanupTriggerSecs, cacheCleanupTriggerSecs, TimeUnit.SECONDS);
+        }else{
+            this.tagToMessage = null;
+        }
     }
 
 
@@ -103,6 +92,7 @@ public class SingleChannelPublisher implements RabbitPublisher {
     public Single<Void> call(Exchange exchange, RoutingKey routingKey, AMQP.BasicProperties basicProperties, Payload payload) {
         return publish(exchange, routingKey, basicProperties, payload, 1, 0);
     }
+
 
     private Single<Void> publish(Exchange exchange, RoutingKey routingKey, AMQP.BasicProperties props, Payload payload, int attempt, int delaySec){
         return Single.<Void>create(subscriber -> schedulePublish(exchange, routingKey, props, payload, attempt, delaySec, subscriber, metricsReporter));
@@ -116,60 +106,66 @@ public class SingleChannelPublisher implements RabbitPublisher {
                                          int delaySec,
                                          SingleSubscriber<? super Void> subscriber,
                                          RxRabbitMetricsReporter metricsReporter) {
-
         long schedulingStart = System.currentTimeMillis();
-        return publishWorker.schedule(() -> {
-            synchronized (this) {    //TODO make this method prettier..
-                final long publishStart = System.currentTimeMillis();
-                UnconfirmedMessage message = new UnconfirmedMessage(subscriber,
-                        exchange.name,
-                        routingKey.value,
-                        props, payload.data,
-                        schedulingStart,
-                        attempt);
-                long seqNo = 0;
-                try {
-                    seqNo = getChannel().getNextPublishSeqNo();
-                } catch (Exception e) {
-                    log.errorWithParams("Error when creating channel. The connection and the channel is now considered broken.", e,
-                            "exchange", exchange,
-                            "routingKey", routingKey,
-                            "basicProperties", props);
-                    closeWithError();
-                    message.nack(e);
-                    return;
-                }
-                final long internalSeqNr = seqNo + seqOffset.get();
-                if (largestSeqSeen.get() < internalSeqNr) {
-                    largestSeqSeen.set(internalSeqNr);
-                }
-                try {
-                    log.traceWithParams("Publishing message.",
-                            "exchange", exchange,
-                            "routingKey", routingKey,
-                            "attemptNo", attempt,
-                            "basicProperties", props
-                    );
-                    //TODO handle publishConfirm = false
-                    getChannel().basicPublish(exchange.name, routingKey.value, props, payload.data);
-                    message.setPublished(true);
-                    tagToMessage.put(internalSeqNr, message);
-                    metricsReporter.reportCount("sent");
-                    metricsReporter.reportCount("sent-bytes", payload.data.length);
-                    message.setPublishCompletedTime(System.currentTimeMillis());
-                    metricsReporter.reportCount("basic-publish-done");
-                    metricsReporter.reportTime("basic-publish-took-ms", System.currentTimeMillis() - publishStart);
-                } catch (Exception e) {
-                    //TODO look at the error and do different things depending on the type??
-                    log.errorWithParams("Error when calling basicPublish. The connection and the channel is now considered broken.", e,
-                            "exchange", exchange,
-                            "routingKey", routingKey,
-                            "basicProperties", props);
-                    closeWithError();
-                    message.nack(e);
-                }
+        return publishWorker.schedule(() -> basicPublish(exchange, routingKey, props, payload, attempt, subscriber, metricsReporter, schedulingStart), delaySec, TimeUnit.SECONDS);
+    }
+
+    private synchronized void basicPublish(Exchange exchange, RoutingKey routingKey, AMQP.BasicProperties props, Payload payload, int attempt, SingleSubscriber<? super Void> subscriber, RxRabbitMetricsReporter metricsReporter, long schedulingStart) {
+        final long publishStart = System.currentTimeMillis();
+        UnconfirmedMessage message = new UnconfirmedMessage(subscriber,
+                exchange.name,
+                routingKey.value,
+                props, payload.data,
+                schedulingStart,
+                attempt);
+        long seqNo;
+        try {
+            seqNo = getChannel().getNextPublishSeqNo();
+        } catch (Exception e) {
+            log.errorWithParams("Error when creating channel. The connection and the channel is now considered broken.", e,
+                    "exchange", exchange,
+                    "routingKey", routingKey,
+                    "basicProperties", props);
+            closeChannelWithError();
+            message.nack(e);
+            return;
+        }
+        final long internalSeqNr = seqNo + seqOffset.get();
+        if (largestSeqSeen.get() < internalSeqNr) {
+            largestSeqSeen.set(internalSeqNr);
+        }
+        try {
+            log.traceWithParams("Publishing message.",
+                    "exchange", exchange,
+                    "routingKey", routingKey,
+                    "attemptNo", attempt,
+                    "basicProperties", props
+            );
+            //TODO handle publishConfirm = false
+            getChannel().basicPublish(exchange.name, routingKey.value, props, payload.data);
+            message.setPublishCompletedTime(System.currentTimeMillis());
+
+            if (publisherConfirms) {
+                message.setPublished(true);
+                tagToMessage.put(internalSeqNr, message);
+            }else{
+                message.ack();
             }
-        }, delaySec, TimeUnit.SECONDS);
+
+            metricsReporter.reportCount("sent");
+            metricsReporter.reportCount("sent-bytes", payload.data.length);
+            metricsReporter.reportCount("basic-publish-done");
+            metricsReporter.reportTime("basic-publish-took-ms", System.currentTimeMillis() - publishStart);
+            //TODO add gauge for outstanding
+        } catch (Exception e) {
+            //TODO look at the error and do different things depending on the type??
+            log.errorWithParams("Error when calling basicPublish. The connection and the channel is now considered broken.", e,
+                    "exchange", exchange,
+                    "routingKey", routingKey,
+                    "basicProperties", props);
+            closeChannelWithError();
+            message.nack(e);
+        }
     }
 
     private synchronized PublishChannel getChannel() throws IOException, TimeoutException {
@@ -195,14 +191,26 @@ public class SingleChannelPublisher implements RabbitPublisher {
         return channel;
     }
 
-    private synchronized void closeWithError() {
+    private synchronized void closeChannelWithError() {
         if (channel!=null) {
             channel.closeWithError();
             channel = null;
         }
         seqOffset.set(largestSeqSeen.get());
-        //ackWorker.unsubscribe(); TODO I don't think we can do this since we need to nack all messages.
-        //publishWorker.unsubscribe();
+    }
+
+    private void handleRemove(RemovalNotification<Long, UnconfirmedMessage> notification) {
+        if (notification.getCause().equals(RemovalCause.EXPIRED)) {
+            UnconfirmedMessage message = notification.getValue();
+            if (message != null) { //TODO how can this be null??
+                ackWorker.schedule(() -> {
+                    if (message.published) {
+                        log.warnWithParams("Message did not receive publish-confirm in time", "messageId", message.props.getMessageId());
+                    } //TODO send metric on the timeout event
+                    message.nack(new TimeoutException("Message did not receive publish confirm in time"));
+                });
+            }
+        }
     }
 
     private ConfirmListener confirmListener() {
@@ -278,6 +286,7 @@ public class SingleChannelPublisher implements RabbitPublisher {
         }
         publishWorker.unsubscribe();
         ackWorker.unsubscribe();
+        cacheCleanupWorker.unsubscribe();
     }
 
 
@@ -290,10 +299,10 @@ public class SingleChannelPublisher implements RabbitPublisher {
         final SingleSubscriber<? super Void> subscriber;
         final int attempt;
 
-        boolean published = false;
-        private final long messageCreationTime;
-
+        private boolean published = false;
         private long publishCompletedTime;
+
+        private final long messageCreationTime;
 
         public UnconfirmedMessage(SingleSubscriber<? super Void> subscriber,
                                   String exchange,
@@ -316,7 +325,7 @@ public class SingleChannelPublisher implements RabbitPublisher {
         }
 
         public void ack() {
-            final long  tookTotal = System.currentTimeMillis() - messageCreationTime;
+            final long tookTotal = System.currentTimeMillis() - messageCreationTime;
             final long tookConfirm = System.currentTimeMillis() - publishCompletedTime;
 
             log.traceWithParams("Got successful confirm for published message.",
@@ -343,6 +352,7 @@ public class SingleChannelPublisher implements RabbitPublisher {
                 );
                 schedulePublish(new Exchange(exchange), new RoutingKey(routingKey), props, new Payload(payload), attempt + 1, delaySec, subscriber, metricsReporter);
             }else{
+                //TODO add gauge for outstanding
                 if(publishCompletedTime > 0){
                     //this means that the message was published, but not confirmed
                     metricsReporter.reportTime("publish-confirm-took-ms", System.currentTimeMillis() - publishCompletedTime);

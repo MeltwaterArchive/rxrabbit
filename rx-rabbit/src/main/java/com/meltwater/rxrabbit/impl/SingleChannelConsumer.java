@@ -100,12 +100,8 @@ public class SingleChannelConsumer implements RabbitConsumer {
                         return Observable.error(throwable);
                     }
                 }))
-                .doOnUnsubscribe(() -> {
-                    close(consumerRef);
-                });
-
-        //TODO add onBackpessure handling here!!
-        //TODO
+                .onBackpressureBuffer()
+                .doOnUnsubscribe(() -> close(consumerRef));
     }
 
     private synchronized void terminate(AtomicBoolean started, AtomicReference<InternalConsumer> consumer) {
@@ -138,7 +134,6 @@ public class SingleChannelConsumer implements RabbitConsumer {
             cons = new InternalConsumer(consumerRef.get(), channel, subscriber, scheduler);
         }
         channel.basicConsume(
-                queue,
                 consumerTag,
                 cons);
         consumerRef.set(cons);

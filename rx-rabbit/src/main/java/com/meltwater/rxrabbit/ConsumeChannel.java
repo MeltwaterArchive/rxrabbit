@@ -3,9 +3,12 @@ package com.meltwater.rxrabbit;
 import com.rabbitmq.client.Consumer;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Interface wrapping a {@link com.rabbitmq.client.Channel} that allows consume operations.
+ *
+ * Note that an instance of this channel is tied to only one queue.
  *
  * @see PublishChannel
  * @see AdminChannel
@@ -13,11 +16,16 @@ import java.io.IOException;
  */
 public interface ConsumeChannel extends ChannelWrapper{
 
+    /**
+     *
+     * @return the queue this channel is able to consume from
+     */
     String getQueue();
 
     /**
      * Cancel a consumer. Calls the consumer's {@link Consumer#handleCancelOk}
      * method.
+     *
      * @param consumerTag a client- or server-generated consumer tag to establish context
      * @throws IOException if an error is encountered, or if the consumerTag is unknown
      * @see com.rabbitmq.client.AMQP.Basic.Cancel
@@ -56,14 +64,18 @@ public interface ConsumeChannel extends ChannelWrapper{
 
 
     /**
-     * Start a non-nolocal, non-exclusive consumer with auto ack set to false.
-     * @param queue the name of the queue
+     * Start a non-nolocal, non-exclusive consumer with auto ack set to false
+     * and empty parameter map.
+     *
      * @param consumerTag a client-generated consumer tag to establish context
      * @param callback an interface to the consumer object
+     *
      * @throws java.io.IOException if an error is encountered
      * @see com.rabbitmq.client.AMQP.Basic.Consume
      * @see com.rabbitmq.client.AMQP.Basic.ConsumeOk
+     *
+     * @see com.rabbitmq.client.Channel#basicConsume(String, boolean, String, boolean, boolean, Map, Consumer)
      */
-    void basicConsume(String queue, String consumerTag, Consumer callback) throws IOException;
+    void basicConsume(String consumerTag, Consumer callback) throws IOException;
 
 }

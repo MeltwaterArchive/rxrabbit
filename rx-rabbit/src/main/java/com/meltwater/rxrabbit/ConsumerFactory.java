@@ -22,19 +22,14 @@ public class ConsumerFactory {
     private Scheduler consumerScheduler = Schedulers.io();
     private ChannelFactory channelFactory;
     private RabbitSettings settings;
+
+    //TODO remove statsd from here (use an interface instead)
     private int statsDPort = 8125;
     private String statsDHost;
-
-    public ConsumerFactory(){}
 
     public ConsumerFactory(BrokerAddresses brokerAddresses, RabbitSettings settings) {
         this.settings = settings;
         this.channelFactory = new DefaultChannelFactory(brokerAddresses, settings);
-    }
-
-    public ConsumerFactory(ChannelFactory channelFactory, RabbitSettings settings) {
-        this.settings = settings;
-        this.channelFactory = channelFactory;
     }
 
     public Observable<Message> createConsumer(String queue) {
@@ -74,10 +69,6 @@ public class ConsumerFactory {
         return this;
     }
 
-    public ConsumerFactory setChannelFactory(ChannelFactory channelFactory) {
-        this.channelFactory = channelFactory;
-        return this;
-    }
 
     public ConsumerFactory setConsumerScheduler(Scheduler consumerScheduler) {
         this.consumerScheduler = consumerScheduler;

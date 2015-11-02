@@ -16,6 +16,8 @@ import java.util.Map;
  */
 public interface AdminChannel extends ChannelWrapper {
 
+    //TODO add links to the Channel methods javadoc instead of copying it
+
     /**
      * Retrieve the connection which carries this channel.
      * @return the underlying {@link Connection}

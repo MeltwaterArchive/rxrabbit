@@ -177,13 +177,13 @@ public class DefaultChannelFactory implements ChannelFactory {
         String connectionName = settings.app_instance_id + "-" + connectionType;
         DateTime startTime = new DateTime(DateTimeZone.UTC);
 
-        Map<String, Object> clientProperties = new HashMap<>();
-        clientProperties.put("appId", settings.app_instance_id);
+        Map<String, Object> clientProperties = new HashMap<>(); //TODO allow the user to add more properties here..
+        clientProperties.put("app_id", settings.app_instance_id);
         clientProperties.put("name", connectionName);
-        clientProperties.put("connectTime", startTime.toString());
-        clientProperties.put("connectionType", connectionType.toString());
+        clientProperties.put("connect_time", startTime.toString());
+        clientProperties.put("connection_type", connectionType.toString());
 
-        //TODO use all the values in addresses (connect to them in order)
+        //TODO use all the values in addresses (connect to them in random? order (or use a configurable/programmable strategy??) )
         ConnectionFactory cf = new ConnectionFactory();
         cf.setPassword(addresses.get(0).password);
         cf.setUsername(addresses.get(0).username);
@@ -453,7 +453,7 @@ public class DefaultChannelFactory implements ChannelFactory {
         }
 
         @Override
-        public void basicConsume(String queue, String consumerTag, Consumer consumer) throws IOException {
+        public void basicConsume(String consumerTag, Consumer consumer) throws IOException {
             delegate.basicConsume(queue, false, consumerTag, consumer);
         }
     }

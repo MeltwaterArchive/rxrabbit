@@ -15,74 +15,63 @@ import java.util.List;
 
 import static com.meltwater.rxrabbit.util.DockerAwareHostnameProvider.getApplicationHostName;
 
+/**
+ * Can create {@link Observable<Message>} that streams the messages delivered to the connected rabbit queue.
+ *
+ * Note that a single {@link ChannelFactory} is backing all the {@link Observable}s created by this factory.
+ *
+ * So if the {@link DefaultChannelFactory} is used it means that all observables will share the same {@link com.rabbitmq.client.Connection}
+ * but use different {@link com.rabbitmq.client.Channel}s.
+ *
+ */
 public class ConsumerFactory {
 
-    private final static Logger logger = new Logger(ConsumerFactory.class);
+    private final static Logger log = new Logger(ConsumerFactory.class);
 
+    private final ChannelFactory channelFactory;
+    private final RabbitSettings settings;
+    private final BrokerAddresses brokerAddresses;
+
+    private ConsumeEventListener consumeEventListener = new ConsumeEventListener() {};
     private Scheduler consumerScheduler = Schedulers.io();
-    private ChannelFactory channelFactory;
-    private RabbitSettings settings;
-
-    //TODO remove statsd from here (use an interface instead)
-    private int statsDPort = 8125;
-    private String statsDHost;
 
     public ConsumerFactory(BrokerAddresses brokerAddresses, RabbitSettings settings) {
+        this.brokerAddresses = brokerAddresses;
         this.settings = settings;
         this.channelFactory = new DefaultChannelFactory(brokerAddresses, settings);
     }
 
-    public Observable<Message> createConsumer(String queue) {
-        StatsDClient statsDClient;
-        if(statsDHost == null){
-            logger.warnWithParams("Creating consumer with no-op metrics client.",
-                "consumeChannels", settings.num_channels,
-                "preFetch", settings.pre_fetch_count
-            );
-            statsDClient = new NoOpStatsDClient();
-        } else {
-            String prefix = getApplicationHostName() +  "." + settings.app_instance_id + "." + queue;
-            logger.infoWithParams("Creating consumer with statsD metrics client",
-                    "consumeChannels", settings.num_channels,
-                    "preFetch", settings.pre_fetch_count,
-                    "statsDHost", statsDHost,
-                    "statsDPort", statsDPort,
-                    "metricsPrefix", prefix);
-            statsDClient = new NonBlockingStatsDClient(prefix, statsDHost,statsDPort);
-        }
-        List<Observable<Message>> consumers = new ArrayList<>();
-        for(int i=0; i<settings.num_channels; i++){
-            consumers.add(new SingleChannelConsumer(
-                    channelFactory,
-                    queue,
-                    settings.app_instance_id +"{"+queue+"}-consumer",
-                    settings.retry_count,
-                    settings.close_timeout_millis,
-                    consumerScheduler,
-                    statsDClient).consume());
-        }
-        return Observable.merge(consumers);
-    }
-
-    public ConsumerFactory setSettings(RabbitSettings settings) {
-        this.settings = settings;
+    public ConsumerFactory setConsumeEventListener(ConsumeEventListener consumeEventListener) {
+        this.consumeEventListener = consumeEventListener;
         return this;
     }
-
 
     public ConsumerFactory setConsumerScheduler(Scheduler consumerScheduler) {
         this.consumerScheduler = consumerScheduler;
         return this;
     }
 
-    public ConsumerFactory setStatsDPort(int statsDPort){
-        this.statsDPort = statsDPort;
-        return this;
-    }
+    public Observable<Message> createConsumer(String queue) {
+        log.infoWithParams("Creating publisher.",
+                "consumeChannels", settings.num_channels,
+                "preFetch", settings.pre_fetch_count,
+                "consumeEventListener", consumeEventListener);
 
-    public ConsumerFactory setStatsDHost(String statsDHost){
-        this.statsDHost = statsDHost;
-        return this;
+        SingleChannelConsumer consumer = new SingleChannelConsumer(
+                channelFactory,
+                queue,
+                settings.app_instance_id + "{" + queue + "}-consumer",
+                settings.retry_count,
+                settings.close_timeout_millis,
+                consumerScheduler,
+                consumeEventListener);
+        List<Observable<Message>> consumers = new ArrayList<>();
+        for(int i=0; i<settings.num_channels; i++){
+            consumers.add(consumer.consume());
+        }
+        //TODO is this merge useful here? (can be done by application code..)
+        //TODO if we keep this add to the javadoc!
+        return Observable.merge(consumers);
     }
 
 }

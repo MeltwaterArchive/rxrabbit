@@ -8,4 +8,7 @@ public class Payload {
         this.data = data;
     }
 
+    public int size() {
+        return data.length;
+    }
 }

@@ -4,8 +4,7 @@ import com.meltwater.rxrabbit.Acknowledger;
 import com.meltwater.rxrabbit.ChannelFactory;
 import com.meltwater.rxrabbit.ConsumeChannel;
 import com.meltwater.rxrabbit.Message;
-import com.meltwater.rxrabbit.metrics.RxRabbitMetricsReporter;
-import com.meltwater.rxrabbit.metrics.RxStatsDMetricsReporter;
+import com.meltwater.rxrabbit.ConsumeEventListener;
 import com.meltwater.rxrabbit.util.Fibonacci;
 import com.meltwater.rxrabbit.util.Logger;
 import com.rabbitmq.client.AMQP;
@@ -13,12 +12,13 @@ import com.rabbitmq.client.BasicProperties;
 import com.rabbitmq.client.Consumer;
 import com.rabbitmq.client.Envelope;
 import com.rabbitmq.client.ShutdownSignalException;
-import com.timgroup.statsd.StatsDClient;
 import rx.Observable;
 import rx.Scheduler;
 import rx.Subscriber;
+import rx.functions.Action0;
 
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -34,7 +34,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
     private final static AtomicInteger consumerCount = new AtomicInteger();
     private final static Logger log = new Logger(SingleChannelConsumer.class);
 
-    private final RxRabbitMetricsReporter metricsReporter; //TODO use an event callback interface here that handles metrics
+    private final ConsumeEventListener metricsReporter;
     private final ChannelFactory channelFactory;
     private final long closeTimeout;
     private final int maxReconnectAttempts;
@@ -48,14 +48,14 @@ public class SingleChannelConsumer implements RabbitConsumer {
                                  int maxReconnectAttempts,
                                  long closeTimeout,
                                  Scheduler scheduler,
-                                 StatsDClient statsDClient) {
+                                 ConsumeEventListener metricsReporter) {
         this.queue = queue;
         this.channelFactory = channelFactory;
         this.scheduler = scheduler;
         this.closeTimeout = closeTimeout;
         this.tagPrefix = tagPrefix;
         this.maxReconnectAttempts = maxReconnectAttempts;
-        this.metricsReporter = new RxStatsDMetricsReporter(statsDClient, "rabbit-consume");
+        this.metricsReporter = metricsReporter;
     }
 
     @Override
@@ -64,25 +64,26 @@ public class SingleChannelConsumer implements RabbitConsumer {
         final AtomicInteger connectAttempt = new AtomicInteger();
         final AtomicReference<InternalConsumer> consumerRef = new AtomicReference<>(null);
 
-        return create(new Observable.OnSubscribe<Message>() {
-            @Override
-            public void call(Subscriber<? super Message> subscriber) {
-                if (!subscriber.isUnsubscribed()) {
-                    if (running.get()) {
-                        subscriber.onError(new IllegalStateException("This observable can only be subscribed to once."));
-                    }else{
-                        running.set(true);
+        return create(
+                new Observable.OnSubscribe<Message>() {
+                    @Override
+                    public void call(Subscriber<? super Message> subscriber) {
+                        if (!subscriber.isUnsubscribed()) {
+                            if (running.get()) {
+                                subscriber.onError(new IllegalStateException("This observable can only be subscribed to once."));
+                            }else{
+                                running.set(true);
+                            }
+                            try {
+                                startConsuming(subscriber, consumerRef);
+                                connectAttempt.set(0);
+                            } catch (Exception e) {
+                                log.errorWithParams("Unexpected error when registering the rabbit consumer", e);
+                                subscriber.onError(e); //TODO filter stack trace
+                            }
+                        }
                     }
-                    try {
-                        startConsuming(subscriber, consumerRef);
-                        connectAttempt.set(0);
-                    } catch (Exception e) {
-                        log.errorWithParams("Unexpected error when registering the rabbit consumer", e);
-                        subscriber.onError(e); //TODO filter stack trace
-                    }
-                }
-            }
-        })
+                })
                 .retryWhen(observable -> observable.flatMap(throwable -> {
                     if (throwable instanceof IllegalStateException) {
                         return Observable.error(throwable);
@@ -141,7 +142,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
 
     static class InternalConsumer implements Consumer {
 
-        private final RxRabbitMetricsReporter metricsReporter;
+        private final ConsumeEventListener consumeEventListener;
         private final Subscriber<? super Message> subscriber;
         private final Scheduler.Worker ackWorker;
         private final Scheduler.Worker deliveryWorker;
@@ -160,25 +161,25 @@ public class SingleChannelConsumer implements RabbitConsumer {
                                 Subscriber<? super Message> subscriber,
                                 Scheduler scheduler,
                                 long closeTimeout,
-                                RxRabbitMetricsReporter metricsReporter,
+                                ConsumeEventListener consumeEventListener,
                                 AtomicLong deliveryOffset,
                                 AtomicLong largestSeenDeliverTag) {
             this.channel = channel;
             this.closeTimeout = closeTimeout;
             this.subscriber = subscriber;
-            this.metricsReporter = metricsReporter;
+            this.consumeEventListener = consumeEventListener;
             this.deliveryOffset = deliveryOffset;
             this.largestSeenDeliverTag = largestSeenDeliverTag;
-            this.deliveryWorker = scheduler.createWorker(); //TODO name the threads
-            this.ackWorker = scheduler.createWorker(); //TODO name the threads
+            this.deliveryWorker = scheduler.createWorker(); //TODO name the threads better
+            deliveryWorker.schedule(() -> Thread.currentThread().setName("rabbit-consumer"));
+            this.ackWorker = scheduler.createWorker(); //TODO name the threads better
+            ackWorker.schedule(() -> Thread.currentThread().setName("rabbit-acknowledge"));
             deliveryOffset.set(largestSeenDeliverTag.get());
         }
 
-
         public InternalConsumer(InternalConsumer that, ConsumeChannel channel, Subscriber<? super Message> subscriber, Scheduler scheduler) {
-            this(channel, subscriber, scheduler, that.closeTimeout, that.metricsReporter, that.deliveryOffset, that.largestSeenDeliverTag);
+            this(channel, subscriber, scheduler, that.closeTimeout, that.consumeEventListener, that.deliveryOffset, that.largestSeenDeliverTag);
         }
-
 
         @Override
         public void handleConsumeOk(String consumerTag) {
@@ -198,7 +199,12 @@ public class SingleChannelConsumer implements RabbitConsumer {
         }
 
         @Override
-        public void handleCancel(String consumerTag) throws IOException {}
+        public void handleCancel(String consumerTag) throws IOException {
+            log.warnWithParams("Consumer stopped unexpectedly. It will not receive any more messages.",
+                    "channel", channel.toString(),
+                    "queue", channel.getQueue(),
+                    "consumerTag", consumerTag);
+        }
 
         @Override
         public void handleShutdownSignal(String consumerTag, ShutdownSignalException sig) {
@@ -215,28 +221,28 @@ public class SingleChannelConsumer implements RabbitConsumer {
         @Override
         public void handleDelivery(String consumerTag, Envelope envelope, AMQP.BasicProperties headers, byte[] body) throws IOException {
             deliveryWorker.schedule(() -> {
-                Thread.currentThread().setName("rabbit-consumer"); //TODO multiple consumer threads
                 if (!subscriber.isUnsubscribed() && !stopping.get()) {
                     long internalDeliverTag = envelope.getDeliveryTag() + deliveryOffset.get();
                     if (internalDeliverTag > largestSeenDeliverTag.get()){
                         largestSeenDeliverTag.set(internalDeliverTag);
                     }
-                    log.traceWithParams("Consumer received message","messageId",
-                            headers.getMessageId(),
+                    log.traceWithParams("Consumer received message",
+                            "messageId", headers.getMessageId(),
                             "externalDeliveryTag", envelope.getDeliveryTag(),
                             "internalDeliveryTag", internalDeliverTag,
                             "largestSeenDeliverTag", largestSeenDeliverTag.get(),
                             "messageHeaders", headers);
                     outstandingAcks.incrementAndGet();
-                    metricsReporter.reportCount("received", 1);
-                    metricsReporter.reportCount("received-bytes", body.length);
                     final Envelope internalEnvelope = new Envelope(internalDeliverTag, envelope.isRedeliver(), envelope.getExchange(), envelope.getRoutingKey());
-                    Acknowledger acknowledger = createAcknowledger(channel, internalEnvelope, headers);
+                    Acknowledger acknowledger = createAcknowledger(channel, internalEnvelope, headers, body);
+                    Message message = new Message(acknowledger, internalEnvelope, headers, body);
+                    consumeEventListener.received(message, outstandingAcks.get());
                     try {
-                        subscriber.onNext(new Message(acknowledger, internalEnvelope, headers, body));
+                        subscriber.onNext(message);
                     } catch (Exception e) {
-                        log.errorWithParams("Unhandled error when sending message to subscriber", e,
-                                "basicProperties", headers);
+                        log.errorWithParams("Unhandled error when sending message to subscriber. This should NEVER happen.", e,
+                                "basicProperties", headers,
+                                "body", new String(body, Charset.forName("utf-8")));
                         acknowledger.onFail();
                     }
                 } else {
@@ -249,122 +255,68 @@ public class SingleChannelConsumer implements RabbitConsumer {
             });
         }
 
-        //TODO ignore acks when channel shut down
         private Acknowledger createAcknowledger(final ConsumeChannel channel,
                                                 final Envelope envelope,
-                                                final BasicProperties headers) {
+                                                final BasicProperties headers,
+                                                final byte[] payload) {
             final long processingStart = System.currentTimeMillis();
             return new Acknowledger() {
                 @Override
                 public void onDone() {
+                    long ackStart = System.currentTimeMillis();
+                    Message message = new Message(this, envelope, headers, payload);
                     ackWorker.schedule(() -> {
-                        Thread.currentThread().setName("rabbit-acknowledger");
-                        long ackStart = System.currentTimeMillis();
                         try {
                             //TODO add multi ack here??
-                            //TODO check if the connection is open... log error/warn (but NO stack trace) and drop if its closed msgAndChannel.getChannel().getConnection().isOpen()
                             final long currentDeliveryOffset = deliveryOffset.get();
                             if(currentDeliveryOffset >= envelope.getDeliveryTag()){
-                                log.debugWithParams("Received ack for zombie message, ignoring",
-                                        "channel", channel.toString(),
-                                        "deliveryTag", envelope.getDeliveryTag(),
-                                        "messageId", headers.getMessageId(),
-                                        "basicProperties", headers.toString());
+                                consumeEventListener.ignoredAck(message);
                             }
                             else {
                                 long actualDeliverTag = envelope.getDeliveryTag() - currentDeliveryOffset;
+                                consumeEventListener.beforeAck(message);
                                 channel.basicAck(actualDeliverTag, false);
-                                metricsReporter.reportCount("ack");
-                                log.traceWithParams("Acknowledged message on channel.",
-                                        "channel", channel.toString(),
-                                        "deliveryTag", envelope.getDeliveryTag(),
-                                        "messageId", headers.getMessageId(),
-                                        "basicProperties", headers.toString(),
-                                        "processingTook", System.currentTimeMillis() - processingStart,
-                                        "ackTook", System.currentTimeMillis() - ackStart);
                             }
                         } catch (Exception e) {
-                            //TODO if we get errors here .. stop the consumer and kill the channel!!
-                            metricsReporter.reportCount("ack/nack-fail");
-                            if (!channel.isOpen()) {
-                                log.infoWithParams("Failed to ack on closed connection.",
-                                        "channel", channel.toString(),
-                                        "deliveryTag", envelope.getDeliveryTag(),
-                                        "messageId", headers.getMessageId(),
-                                        "basicProperties", headers.toString(),
-                                        "processingTook", System.currentTimeMillis() - processingStart,
-                                        "ackTook", System.currentTimeMillis() - ackStart);
-                            } else {
-                                log.errorWithParams("Could not acknowledge message.", e,
-                                        "channel", channel.toString(),
-                                        "deliveryTag", envelope.getDeliveryTag(),
-                                        "messageId", headers.getMessageId(),
-                                        "basicProperties", headers.toString(),
-                                        "processingTook", System.currentTimeMillis() - processingStart,
-                                        "ackTook", System.currentTimeMillis() - ackStart);
-                            }
+                            consumeEventListener.afterFailedAck(message, e, channel.isOpen());
                         } finally {
-                            decrementAndReport(ackStart);
+                            decrementAndReportOutstanding();
                         }
+                        consumeEventListener.done(message, outstandingAcks.get(), ackStart, processingStart);
                     });
                 }
 
                 @Override
                 public void onFail() {
                     final long nackStart = System.currentTimeMillis();
+                    Message message = new Message(this, envelope, headers, payload);
                     ackWorker.schedule(() -> {
                         try {
                             final long currentDeliveryOffset = deliveryOffset.get();
                             if(currentDeliveryOffset >= envelope.getDeliveryTag()){
-                                log.debugWithParams("Received nack for zombie message, ignoring",
-                                        "channel", channel,
-                                        "deliveryTag", envelope.getDeliveryTag(),
-                                        "messageId", headers.getMessageId(),
-                                        "basicProperties", headers.toString());
+                                consumeEventListener.ignoredNack(message);
                             }
                             else {
                                 long actualDeliverTag = envelope.getDeliveryTag() - currentDeliveryOffset;
+                                consumeEventListener.beforeNack(message);
                                 channel.basicNack(actualDeliverTag, false);
-                                metricsReporter.reportCount("nack");
-                                log.traceWithParams("Received nack on channel.",
-                                        "channel", channel,
-                                        "deliveryTag", envelope.getDeliveryTag(),
-                                        "basicProperties", headers.toString());
                             }
                         } catch (Exception e) {
-                            //TODO if we get errors here .. stop the consumer and kill the channel!!
-                            metricsReporter.reportCount("ack/nack-fail");
-                            if (!channel.isOpen()) {
-                                log.infoWithParams("Failed to nack on closed connection.",
-                                        "channel", channel,
-                                        "deliveryTag", envelope.getDeliveryTag(),
-                                        "basicProperties", headers.toString());
-                            } else {
-                                log.errorWithParams("Could not report fail for message.", e,
-                                        "channel", channel,
-                                        "deliveryTag", envelope.getDeliveryTag(),
-                                        "basicProperties", headers.toString());
-                            }
+                            consumeEventListener.afterFailedNack(message, e, channel.isOpen());
                         } finally {
-                            decrementAndReport(nackStart);
+                            decrementAndReportOutstanding();
                         }
+                        consumeEventListener.done(message, outstandingAcks.get(), nackStart, processingStart);
                     });
                 }
 
-                private void decrementAndReport(long ackNackStart) {
-                    metricsReporter.reportCount("done");
-                    metricsReporter.reportTime("ack/nack-took-ms", System.currentTimeMillis() - ackNackStart);
-                    metricsReporter.reportTime("processing-took-ms", System.currentTimeMillis() - processingStart);
+                private void decrementAndReportOutstanding() {
                     synchronized (outstandingAcks) {
                         outstandingAcks.decrementAndGet();
                         outstandingAcks.notifyAll();
                     }
                 }
             };
-        }
-
-        String getConsumerTag() {
-            return consumerTag;
         }
 
         void close() {
@@ -375,14 +327,14 @@ public class SingleChannelConsumer implements RabbitConsumer {
             stopping.set(true);
             log.infoWithParams("Shutting down consumer. Waiting for outstanding acks before closing the channel.",
                     "channel", channel.toString(),
-                    "consumerTag", getConsumerTag(),
+                    "consumerTag", consumerTag,
                     "unAckedMessages", outstandingAcks.get());
             try {
-                channel.basicCancel(getConsumerTag());
+                channel.basicCancel(consumerTag);
             } catch (Exception e) {
                 log.warnWithParams("Unexpected error when canceling consumer", e,
                         "channel", channel.toString(),
-                        "consumerTag", getConsumerTag(),
+                        "consumerTag", consumerTag,
                         "unAckedMessages", outstandingAcks.get()
                 );
             }
@@ -393,16 +345,16 @@ public class SingleChannelConsumer implements RabbitConsumer {
                         outstandingAcks.wait(100);
                     } catch (InterruptedException ignored) {
                         log.warnWithParams("Close interrupted with un-acked messages still pending",
-                                "consumerTag", getConsumerTag(),
+                                "consumerTag", consumerTag,
                                 "unAckedMessages", outstandingAcks.get());
                         break;
                     }
-                    //TODO maybe log the progress here
+                    //TODO maybe log the progress here??
                     long timeWaited = System.currentTimeMillis() - startTime;
                     if (closeTimeout > 0 && timeWaited >= closeTimeout) {
                         log.warnWithParams("Close timeout reached with un-acked messages still pending",
                                 "channel", channel.toString(),
-                                "consumerTag", getConsumerTag(),
+                                "consumerTag", consumerTag,
                                 "millisWaited", timeWaited,
                                 "unAckedMessages", outstandingAcks.get());
                         break;

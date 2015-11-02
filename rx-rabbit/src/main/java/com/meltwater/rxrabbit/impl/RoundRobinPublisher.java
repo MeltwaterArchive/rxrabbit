@@ -1,7 +1,10 @@
 package com.meltwater.rxrabbit.impl;
 
 import com.google.common.collect.Iterables;
+import com.meltwater.rxrabbit.Exchange;
+import com.meltwater.rxrabbit.Payload;
 import com.meltwater.rxrabbit.RabbitPublisher;
+import com.meltwater.rxrabbit.RoutingKey;
 import com.rabbitmq.client.AMQP;
 import rx.Single;
 
@@ -21,13 +24,8 @@ public class RoundRobinPublisher implements RabbitPublisher {
     }
 
     @Override
-    public String getExchange() {
-        return backingPublishers.get(0).getExchange();
-    }
-
-    @Override
-    public Single<Void> publish(String routingKey, AMQP.BasicProperties props, byte[] payload) {
-        return publisherIterator.next().publish(routingKey,props,payload);
+    public Single<Void> call(Exchange exchange, RoutingKey routingKey, AMQP.BasicProperties basicProperties, Payload payload) {
+        return publisherIterator.next().call(exchange, routingKey, basicProperties, payload);
     }
 
     @Override

@@ -55,9 +55,9 @@ public class DefaultChannelFactory implements ChannelFactory {
     }
 
     @Override
-    public PublishChannel createPublishChannel(String exchange)throws IOException, TimeoutException {
+    public PublishChannel createPublishChannel()throws IOException, TimeoutException {
         //TODO use the exchange and locate the correct host to connect to
-        return (PublishChannel)createChannel(ChannelType.publish, exchange);
+        return (PublishChannel)createChannel(ChannelType.publish, null);
     }
 
     @Override
@@ -132,7 +132,7 @@ public class DefaultChannelFactory implements ChannelFactory {
         }
     }
 
-    private synchronized ChannelWrapper createChannel(ChannelType type, String queueOrExchange) throws IOException, TimeoutException {
+    private synchronized ChannelWrapper createChannel(ChannelType type, String queue) throws IOException, TimeoutException {
         Channel innerChannel = getOrCreateConnection(type).createChannel();
         ConnectionInfo info = conToChannel.get(type);
 
@@ -140,13 +140,14 @@ public class DefaultChannelFactory implements ChannelFactory {
 
         ChannelImpl channel = null;
         switch (type){
-            case consume  : channel = new ConsumeChannelImpl(innerChannel, queueOrExchange, hashCode, type, this); break;
-            case publish  : channel = new PublishChannelImpl(innerChannel, queueOrExchange, hashCode, type, this); break;
+            case consume  : channel = new ConsumeChannelImpl(innerChannel, queue, hashCode, type, this); break;
+            case publish  : channel = new PublishChannelImpl(innerChannel, hashCode, type, this); break;
             case admin    : channel = new AdminChannelImpl(innerChannel, hashCode, type, this); break;
         }
 
         info.channels.add(channel);
 
+        //TODO move these to the respective Consumer/Producer
         if (type.equals(ChannelType.consume)){
             if (settings.pre_fetch_count >0){
                 innerChannel.basicQos(settings.pre_fetch_count);
@@ -392,16 +393,8 @@ public class DefaultChannelFactory implements ChannelFactory {
 
     static class PublishChannelImpl extends ChannelImpl implements PublishChannel {
 
-        private final String exchange;
-
-        PublishChannelImpl(Channel delegate, String exchange, int hashCode, ChannelType channelType, DefaultChannelFactory factory) {
+        PublishChannelImpl(Channel delegate, int hashCode, ChannelType channelType, DefaultChannelFactory factory) {
             super(delegate, hashCode, channelType, factory);
-            this.exchange = exchange;
-        }
-
-        @Override
-        public String getExchange() {
-            return exchange;
         }
 
         @Override

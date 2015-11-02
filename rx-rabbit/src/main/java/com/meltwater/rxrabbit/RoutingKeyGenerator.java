@@ -1,5 +1,7 @@
 package com.meltwater.rxrabbit;
 
 public interface RoutingKeyGenerator<T> {
-    String generateRoutingKey(T obj);
+
+    RoutingKey generateRoutingKey(T obj);
+
 }

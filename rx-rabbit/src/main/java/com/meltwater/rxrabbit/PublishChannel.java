@@ -15,8 +15,6 @@ import java.util.concurrent.TimeoutException;
  */
 public interface PublishChannel extends ChannelWrapper{
 
-    String getExchange();
-
     /**
      * Add a {@link ConfirmListener}.
      * @param listener the listener to add

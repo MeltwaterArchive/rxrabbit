@@ -14,7 +14,7 @@ public class Message {
      * The acknowledger is used to tell the consumer that the message is either safe to acknowledge
      * or that the processing of it failed.
      *
-     * NOTE the consuming code is expected to call one of the acknowledgers methods as so as it can.
+     * NOTE the consuming code is expected to call one of the acknowledgers methods as soon as it can.
      * Failure in doing so will in most cases make the message stream stop as rabbitmq will be waiting for acks
      * before delivering more messages.
      */

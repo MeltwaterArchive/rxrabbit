@@ -1,8 +1,8 @@
 package com.meltwater.rxrabbit.util;
 
-public class DelaySequence {
+public class Fibonacci {
 
-    private static final int[] SEQUENCE = new int[] { 1, 1, 2, 3, 5, 7, 10, 20, 30};
+    private static final int[] SEQUENCE = new int[] { 1, 1, 2, 3, 5, 8, 13, 21, 34};
 
     public static int getDelaySec(int attempt) {
         return attempt< SEQUENCE.length? SEQUENCE[attempt]: SEQUENCE[SEQUENCE.length-1];

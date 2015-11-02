@@ -6,7 +6,7 @@ import com.meltwater.rxrabbit.ConsumeChannel;
 import com.meltwater.rxrabbit.Message;
 import com.meltwater.rxrabbit.metrics.RxRabbitMetricsReporter;
 import com.meltwater.rxrabbit.metrics.RxStatsDMetricsReporter;
-import com.meltwater.rxrabbit.util.DelaySequence;
+import com.meltwater.rxrabbit.util.Fibonacci;
 import com.meltwater.rxrabbit.util.Logger;
 import com.rabbitmq.client.*;
 import com.timgroup.statsd.StatsDClient;
@@ -71,6 +71,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
                     }
                     try {
                         startConsuming(subscriber, consumerRef);
+                        connectAttempt.set(0);
                     } catch (Exception e) {
                         log.errorWithParams("Unexpected error when registering the rabbit consumer", e);
                         subscriber.onError(e); //TODO filter stack trace
@@ -85,7 +86,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
                     terminate(running,consumerRef);
                     int conAttempt = connectAttempt.get();
                     if (maxReconnectAttempts <= 0 || conAttempt < maxReconnectAttempts) {
-                        final int delaySec = DelaySequence.getDelaySec(conAttempt);
+                        final int delaySec = Fibonacci.getDelaySec(conAttempt);
                         connectAttempt.incrementAndGet();
                         log.infoWithParams("Scheduling attempting to restart consumer",
                                 "attempt", connectAttempt,

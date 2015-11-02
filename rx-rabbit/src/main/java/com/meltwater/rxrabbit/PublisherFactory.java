@@ -2,14 +2,12 @@ package com.meltwater.rxrabbit;
 
 import com.meltwater.rxrabbit.impl.DefaultChannelFactory;
 import com.meltwater.rxrabbit.impl.RoundRobinPublisher;
-import com.meltwater.rxrabbit.impl.SingleChannelConsumer;
 import com.meltwater.rxrabbit.impl.SingleChannelPublisher;
 import com.meltwater.rxrabbit.util.DockerAwareHostnameProvider;
 import com.meltwater.rxrabbit.util.Logger;
 import com.timgroup.statsd.NoOpStatsDClient;
 import com.timgroup.statsd.NonBlockingStatsDClient;
 import com.timgroup.statsd.StatsDClient;
-import rx.Observable;
 import rx.Scheduler;
 import rx.schedulers.Schedulers;
 

@@ -25,21 +25,13 @@ public class PublisherFactory {
     private ChannelFactory channelFactory;
     private Scheduler producerScheduler = Schedulers.io();
 
+    //TODO remove statsd from here (use an interface instead)
     private int statsDPort = 8125;
     private String statsDHost;
-
-    public PublisherFactory(){
-
-    }
 
     public PublisherFactory(BrokerAddresses brokerAddresses, RabbitSettings settings) {
         this.settings = settings;
         this.channelFactory = new DefaultChannelFactory(brokerAddresses, settings);
-    }
-
-    public PublisherFactory(ChannelFactory channelFactory, RabbitSettings settings) {
-        this.settings = settings;
-        this.channelFactory = channelFactory;
     }
 
     //TODO weird that exchange is specified both here and when publishing...
@@ -80,11 +72,6 @@ public class PublisherFactory {
 
     public PublisherFactory setSettings(RabbitSettings settings) {
         this.settings = settings;
-        return this;
-    }
-
-    public PublisherFactory setChannelFactory(ChannelFactory channelFactory) {
-        this.channelFactory = channelFactory;
         return this;
     }
 

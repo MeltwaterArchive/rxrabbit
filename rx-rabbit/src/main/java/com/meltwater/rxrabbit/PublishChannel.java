@@ -15,6 +15,8 @@ import java.util.concurrent.TimeoutException;
  */
 public interface PublishChannel extends ChannelWrapper{
 
+    //TODO add links to the Channel methods javadoc instead of copying it
+
     /**
      * Add a {@link ConfirmListener}.
      * @param listener the listener to add

@@ -6,7 +6,7 @@ import com.rabbitmq.client.BasicProperties;
  * Convenience enum to map integer tags to descriptive delivery mode names
  *
  * @see BasicProperties#getDeliveryMode()
- * @see {https://www.rabbitmq.com/amqp-0-9-1-reference.html}
+ * @see <a href="https://www.rabbitmq.com/amqp-0-9-1-reference.html">amqp-0-9-1-reference</a>
  */
 public enum DeliveryMode {
     non_persistent(1),

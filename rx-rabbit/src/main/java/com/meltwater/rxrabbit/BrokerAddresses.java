@@ -21,9 +21,9 @@ import static com.rabbitmq.client.ConnectionFactory.DEFAULT_VHOST;
 import static com.rabbitmq.client.ConnectionFactory.USE_DEFAULT_PORT;
 
 /**
- * This class represents a list AMQP URIs.
+ * This class represents a list of AMQP URIs.
  *
- * @see {https://www.rabbitmq.com/uri-spec.html}
+ * @see <a href="https://www.rabbitmq.com/uri-spec.html">amqp uri-spec</a>
  */
 public class BrokerAddresses implements Iterable<BrokerAddresses.BrokerAddress>{
 

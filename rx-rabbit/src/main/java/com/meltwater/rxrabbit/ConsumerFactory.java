@@ -11,7 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Can create {@link Observable<Message>} that streams the messages delivered to the connected rabbit queue.
+ * Can create {@link Observable} that streams the messages delivered to the connected rabbit queue.
  *
  * Note that a single {@link ChannelFactory} is backing all the {@link Observable}s created by this factory.
  *

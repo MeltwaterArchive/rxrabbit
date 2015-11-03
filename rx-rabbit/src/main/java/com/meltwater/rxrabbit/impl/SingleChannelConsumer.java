@@ -80,7 +80,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
                                 connectAttempt.set(0);
                             } catch (Exception e) {
                                 log.errorWithParams("Unexpected error when registering the rabbit consumer", e);
-                                subscriber.onError(e); //TODO filter stack trace
+                                subscriber.onError(e);
                             }
                         }
                     }
@@ -269,7 +269,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
                     Message message = new Message(this, envelope, headers, payload);
                     ackWorker.schedule(() -> {
                         try {
-                            //TODO add multi ack here??
+                            //TODO should we add multi ack here ??
                             final long currentDeliveryOffset = deliveryOffset.get();
                             if(currentDeliveryOffset >= envelope.getDeliveryTag()){
                                 consumeEventListener.ignoredAck(message);
@@ -351,7 +351,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
                                 "unAckedMessages", outstandingAcks.get());
                         break;
                     }
-                    //TODO maybe log the progress here??
+                    //TODO maybe log shutdown the progress here??
                     long timeWaited = System.currentTimeMillis() - startTime;
                     if (closeTimeout > 0 && timeWaited >= closeTimeout) {
                         log.warnWithParams("Close timeout reached with un-acked messages still pending",

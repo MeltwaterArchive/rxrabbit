@@ -234,11 +234,11 @@ public class SingleChannelPublisher implements RabbitPublisher {
     private void handleCacheRemove(RemovalNotification<Long, UnconfirmedMessage> notification) {
         if (notification.getCause().equals(RemovalCause.EXPIRED)) {
             UnconfirmedMessage message = notification.getValue();
-            if (message != null) { //TODO how can this be null??
+            if (message != null) { //TODO figure out why this can be null??
                 ackWorker.schedule(() -> {
                     if (message.published) {
                         log.warnWithParams("Message did not receive publish-confirm in time", "messageId", message.props.getMessageId());
-                    } //TODO send metric on the timeout event
+                    }
                     message.nack(new TimeoutException("Message did not receive publish confirm in time"));
                 });
             }

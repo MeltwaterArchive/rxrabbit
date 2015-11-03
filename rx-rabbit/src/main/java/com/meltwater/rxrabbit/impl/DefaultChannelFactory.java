@@ -164,7 +164,7 @@ public class DefaultChannelFactory implements ChannelFactory {
         String connectionName = settings.app_instance_id + "-" + connectionType;
         DateTime startTime = new DateTime(DateTimeZone.UTC);
 
-        Map<String, Object> clientProperties = new HashMap<>(); //TODO allow the user to add more properties here..
+        Map<String, Object> clientProperties = new HashMap<>(); //TODO allow the user to add more properties to this map...
         clientProperties.put("app_id", settings.app_instance_id);
         clientProperties.put("name", connectionName);
         clientProperties.put("connect_time", startTime.toString());

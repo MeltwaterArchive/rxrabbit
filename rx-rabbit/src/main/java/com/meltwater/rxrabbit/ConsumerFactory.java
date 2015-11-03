@@ -65,7 +65,7 @@ public class ConsumerFactory {
         for(int i=0; i<settings.num_channels; i++){
             consumers.add(consumer.consume());
         }
-        //TODO is this merge useful here? (can be done by application code..)
+        //TODO is this merge useful here? (can also be done by application code..)
         //TODO if we keep this add to the javadoc!
         return Observable.merge(consumers);
     }

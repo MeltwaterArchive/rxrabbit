@@ -180,14 +180,16 @@ public class SingleChannelPublisher implements RabbitPublisher {
                     Thread.sleep(Fibonacci.getDelayMillis(i));
                     log.infoWithParams("Creating publish channel.");
                     this.channel = channelFactory.createPublishChannel();
-                    //TODO do not add confirm listener if not publish confirms!!
-                    channel.addConfirmListener(new InternalConfirmListener(ackWorker,this));
+                    if (publisherConfirms){
+                        channel.confirmSelect();
+                        channel.addConfirmListener(new InternalConfirmListener(ackWorker,this));
+                    }
                     break;
                 } catch (Exception ignored) {
-                    log.warnWithParams("Failed to create connection. will try again.",
+                    log.warnWithParams("Failed to create connection. Will try to re-connect again.",
                             "attempt", i,
                             "maxAttempts", maxRetries,
-                            "secsUntilNextAttempt", Fibonacci.getDelaySec(i));
+                            "secsUntilNextAttempt", Fibonacci.getDelaySec(i+1));
                 }
             }
         }

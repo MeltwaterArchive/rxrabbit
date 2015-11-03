@@ -1,6 +1,7 @@
 package com.meltwater.rxrabbit;
 
 import com.rabbitmq.client.AMQP;
+import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.ConfirmListener;
 
 import java.io.IOException;
@@ -71,4 +72,10 @@ public interface PublishChannel extends ChannelWrapper{
      */
     boolean waitForConfirms(long timeout) throws InterruptedException, TimeoutException;
 
+    /**
+     * Enables publisher acknowledgements on this channel.
+     * @see Channel#confirmSelect()
+     * @throws java.io.IOException if an error is encountered
+     */
+    void confirmSelect() throws IOException;
 }

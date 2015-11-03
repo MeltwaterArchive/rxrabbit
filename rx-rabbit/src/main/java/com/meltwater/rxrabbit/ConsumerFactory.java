@@ -55,6 +55,7 @@ public class ConsumerFactory {
         SingleChannelConsumer consumer = new SingleChannelConsumer(
                 channelFactory,
                 queue,
+                settings.pre_fetch_count,
                 settings.app_instance_id + "{" + queue + "}-consumer",
                 settings.retry_count,
                 settings.close_timeout_millis,

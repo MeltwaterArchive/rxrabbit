@@ -137,7 +137,6 @@ public class DefaultChannelFactory implements ChannelFactory {
         ConnectionInfo info = conToChannel.get(type);
 
         final int hashCode = innerChannel.hashCode();
-
         ChannelImpl channel = null;
         switch (type){
             case consume  : channel = new ConsumeChannelImpl(innerChannel, queue, hashCode, type, this); break;
@@ -146,18 +145,6 @@ public class DefaultChannelFactory implements ChannelFactory {
         }
 
         info.channels.add(channel);
-
-        //TODO move these things to the Consumer/Producer
-        if (type.equals(ChannelType.consume)){
-            if (settings.pre_fetch_count >0){
-                innerChannel.basicQos(settings.pre_fetch_count);
-            }
-        }
-        if (type.equals(ChannelType.publish)){
-            if (settings.publisher_confirms){
-                innerChannel.confirmSelect();
-            }
-        }
         log.infoWithParams("Successfully created "+type+" channel.",
                 "channel", channel,
                 "connectionName", info.name,
@@ -418,6 +405,11 @@ public class DefaultChannelFactory implements ChannelFactory {
         }
 
         @Override
+        public void confirmSelect() throws IOException {
+            delegate.confirmSelect();
+        }
+
+        @Override
         public boolean waitForConfirms() throws InterruptedException {
             return delegate.waitForConfirms();
         }
@@ -455,6 +447,11 @@ public class DefaultChannelFactory implements ChannelFactory {
         @Override
         public void basicConsume(String consumerTag, Consumer consumer) throws IOException {
             delegate.basicConsume(queue, false, consumerTag, consumer);
+        }
+
+        @Override
+        public void basicQos(int prefetchCount) throws IOException {
+            delegate.basicQos(prefetchCount);
         }
     }
 

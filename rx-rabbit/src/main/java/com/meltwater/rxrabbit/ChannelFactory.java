@@ -3,6 +3,9 @@ package com.meltwater.rxrabbit;
 import java.io.IOException;
 import java.util.concurrent.TimeoutException;
 
+/**
+ * A factory for creating channels
+ */
 public interface ChannelFactory {
 
     ConsumeChannel createConsumeChannel(String queue) throws IOException, TimeoutException;

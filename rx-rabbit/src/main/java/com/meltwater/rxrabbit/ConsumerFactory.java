@@ -3,17 +3,12 @@ package com.meltwater.rxrabbit;
 import com.meltwater.rxrabbit.impl.DefaultChannelFactory;
 import com.meltwater.rxrabbit.impl.SingleChannelConsumer;
 import com.meltwater.rxrabbit.util.Logger;
-import com.timgroup.statsd.NoOpStatsDClient;
-import com.timgroup.statsd.NonBlockingStatsDClient;
-import com.timgroup.statsd.StatsDClient;
 import rx.Observable;
 import rx.Scheduler;
 import rx.schedulers.Schedulers;
 
 import java.util.ArrayList;
 import java.util.List;
-
-import static com.meltwater.rxrabbit.util.DockerAwareHostnameProvider.getApplicationHostName;
 
 /**
  * Can create {@link Observable<Message>} that streams the messages delivered to the connected rabbit queue.

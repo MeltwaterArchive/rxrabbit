@@ -3,8 +3,8 @@ package com.meltwater.rxrabbit.impl;
 import com.meltwater.rxrabbit.Acknowledger;
 import com.meltwater.rxrabbit.ChannelFactory;
 import com.meltwater.rxrabbit.ConsumeChannel;
-import com.meltwater.rxrabbit.Message;
 import com.meltwater.rxrabbit.ConsumeEventListener;
+import com.meltwater.rxrabbit.Message;
 import com.meltwater.rxrabbit.util.Fibonacci;
 import com.meltwater.rxrabbit.util.Logger;
 import com.rabbitmq.client.AMQP;
@@ -15,7 +15,6 @@ import com.rabbitmq.client.ShutdownSignalException;
 import rx.Observable;
 import rx.Scheduler;
 import rx.Subscriber;
-import rx.functions.Action0;
 
 import java.io.IOException;
 import java.nio.charset.Charset;

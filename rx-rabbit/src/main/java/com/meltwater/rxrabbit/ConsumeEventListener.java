@@ -1,5 +1,8 @@
 package com.meltwater.rxrabbit;
 
+/**
+ * Listener that get notified about consume and ack/nack events
+ */
 public interface ConsumeEventListener {
 
     default void received(Message message, long unAckedMessages){}

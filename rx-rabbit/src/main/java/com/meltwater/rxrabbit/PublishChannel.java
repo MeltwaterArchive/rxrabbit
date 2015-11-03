@@ -33,7 +33,8 @@ public interface PublishChannel extends ChannelWrapper{
      * <a href="http://www.rabbitmq.com/alarms.html">resource-driven alarm</a> is in effect.
      *
      * @see com.rabbitmq.client.AMQP.Basic.Publish
-     * @see <a href="http://www.rabbitmq.com/alarms.html">Resource-driven alarms</a>.
+     * @see <a href="http://www.rabbitmq.com/alarms.html">Resource-driven alarms</a>
+     *
      * @param exchange the exchange to publish the message to
      * @param routingKey the routing key
      * @param props other properties for the message - routing headers etc

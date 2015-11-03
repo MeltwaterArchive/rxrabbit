@@ -9,7 +9,10 @@ import java.io.IOException;
 
 /**
  * A publisher can publish amqp messages to an amqp exchange.
- * It is up to the implementation to decide if publisher confirms should be used or not.
+ *
+ * It is up to the implementation to decide if
+ * <a href="https://www.rabbitmq.com/confirms.html">publisher confirms</a> should be used or not.
+ *
  */
 public interface RabbitPublisher extends Func4<Exchange, RoutingKey, AMQP.BasicProperties, Payload, Single<Void>>, Closeable {
 
@@ -33,10 +36,5 @@ public interface RabbitPublisher extends Func4<Exchange, RoutingKey, AMQP.BasicP
     @Override
     Single<Void> call(Exchange exchange, RoutingKey routingKey, AMQP.BasicProperties basicProperties, Payload payload);
 
-    /**
-     *
-     * @throws IOException
-     */
-    @Override
-    void close() throws IOException;
+
 }

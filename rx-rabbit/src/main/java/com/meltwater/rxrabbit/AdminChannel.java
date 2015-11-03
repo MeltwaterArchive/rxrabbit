@@ -59,7 +59,7 @@ public interface AdminChannel extends ChannelWrapper {
      * @param internal true if the exchange is internal, i.e. can't be directly
      * published to by a client.
      * @param arguments other properties (construction arguments) for the exchange
-     * @return a declaration-confirm method to indicate the exchange was successfully declared
+     *
      * @throws java.io.IOException if an error is encountered
      */
     void exchangeDeclareNoWait(String exchange,

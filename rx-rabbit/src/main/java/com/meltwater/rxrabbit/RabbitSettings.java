@@ -11,22 +11,23 @@ import java.util.Map;
 
 /**
  * This class contains rabbitmq connection settings. Some settings are part of the official AMQP URI spec v 0-9-1,
- * others are domain specific to this library and is used to configure the {@link ConnectionFactory} and {@link PublisherFactory}.
+ * others are domain specific to this library and is used to configure the {@link ConsumerFactory} and {@link PublisherFactory}.
  *
  * Some settings are only relevant for consumers, some are only relevant for producers and some are used by
  * both consumers and publishers.
  *
  * This object can be built pragmatically by using the various {@link RabbitSettings.Builder}
- * withXX methods or by supplying a JSON formatted String to the {@link RabbitSettings.Builder#setDefaults(String)} method.
+ * withXX methods or by supplying a JSON formatted String to the {@link RabbitSettings.Builder} constructor.
  *
- * The available JSON parameter names are included as String constants but they also directly corresponds to the names of the fields in this class.
+ * The available JSON parameter names are included as String constants here as well as beeing mapped directly
+ * to the names of the fields in this class.
  *
  * The {@link #toString()} method shows the JSON representation of this class and can be used as input to the
- * {@link RabbitSettings.Builder#setDefaults(String)} method. method.
+ * {@link RabbitSettings.Builder} constructor.
  *
- * @see {@link ConsumerFactory}
- * @see {@link PublisherFactory}
- * @see {https://www.rabbitmq.com/uri-query-parameters.html}
+ * @see ConsumerFactory
+ * @see PublisherFactory
+ * @see <a href="https://www.rabbitmq.com/uri-query-parameters.html">AMQP uri-query-parameters</a>
  */
 public class RabbitSettings {
 
@@ -124,6 +125,7 @@ public class RabbitSettings {
             setDefaults(new HashMap<>());
         }
 
+        @SuppressWarnings("unchecked")
         public Builder(String settingsJSONString) {
             mapper.configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
             mapper.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
@@ -140,8 +142,6 @@ public class RabbitSettings {
 
         /**
          * Fills in the values supplied in the JSON formatted string. The available parameter values
-         *
-         * @return this builder with all the values provided in the JSON filled in
          */
         private void setDefaults(Map<String,Object> map){
             publisherConfirms = (boolean) map.getOrDefault(publisher_confirms_param, DEFAULT_PUBLISHER_CONFIRMS);

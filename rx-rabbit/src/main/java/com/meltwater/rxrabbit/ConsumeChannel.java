@@ -78,4 +78,14 @@ public interface ConsumeChannel extends ChannelWrapper{
      */
     void basicConsume(String consumerTag, Consumer callback) throws IOException;
 
+    /**
+     * Request a specific prefetchCount "quality of service" settings
+     * for this channel.
+     *
+     * @see com.rabbitmq.client.Channel#basicQos(int)
+     * @param prefetchCount maximum number of messages that the server
+     * will deliver, 0 if unlimited
+     * @throws java.io.IOException if an error is encountered
+     */
+    void basicQos(int prefetchCount) throws IOException;
 }

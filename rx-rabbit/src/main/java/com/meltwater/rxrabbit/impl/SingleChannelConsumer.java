@@ -40,16 +40,18 @@ public class SingleChannelConsumer implements RabbitConsumer {
     private final Scheduler scheduler;
     private final String tagPrefix;
     private final String queue;
+    private final int preFetchCount;
 
     public SingleChannelConsumer(ChannelFactory channelFactory,
                                  String queue,
-                                 String tagPrefix,
+                                 int preFetchCount, String tagPrefix,
                                  int maxReconnectAttempts,
                                  long closeTimeout,
                                  Scheduler scheduler,
                                  ConsumeEventListener metricsReporter) {
         this.queue = queue;
         this.channelFactory = channelFactory;
+        this.preFetchCount = preFetchCount;
         this.scheduler = scheduler;
         this.closeTimeout = closeTimeout;
         this.tagPrefix = tagPrefix;
@@ -121,6 +123,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
     private synchronized void startConsuming(Subscriber<? super Message> subscriber,
                                              AtomicReference<InternalConsumer> consumerRef) throws IOException, TimeoutException {
         ConsumeChannel channel = channelFactory.createConsumeChannel(queue);
+        channel.basicQos(preFetchCount);
         String consumerTag = this.tagPrefix + "-" + consumerCount.incrementAndGet();
         log.infoWithParams("Starting up consumer.",
                 "queue", queue,

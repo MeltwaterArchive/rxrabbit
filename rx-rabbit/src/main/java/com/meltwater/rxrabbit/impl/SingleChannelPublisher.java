@@ -13,6 +13,7 @@ import rx.Scheduler;
 import rx.Single;
 import rx.SingleSubscriber;
 import rx.Subscription;
+import rx.schedulers.Schedulers;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,6 +32,7 @@ public class SingleChannelPublisher implements RabbitPublisher {
 
     private final int maxRetries;
     private final boolean publisherConfirms;
+    private Scheduler observeOnScheduler;
     private final long closeTimeoutMillis;
 
     private final ChannelFactory channelFactory;
@@ -50,7 +52,7 @@ public class SingleChannelPublisher implements RabbitPublisher {
     public SingleChannelPublisher(ChannelFactory channelFactory,
                                   boolean publisherConfirms,
                                   int maxRetries,
-                                  Scheduler scheduler,
+                                  Scheduler observeOnScheduler,
                                   PublishEventListener metricsReporter,
                                   long confirmsTimeoutSec,
                                   long closeTimeoutMillis,
@@ -58,14 +60,15 @@ public class SingleChannelPublisher implements RabbitPublisher {
         this.channelFactory = channelFactory;
         this.publisherConfirms = publisherConfirms;
         this.maxRetries = maxRetries;
+        this.observeOnScheduler = observeOnScheduler;
         this.closeTimeoutMillis = closeTimeoutMillis;
         this.metricsReporter = metricsReporter;
 
-        this.publishWorker = scheduler.createWorker();
+        this.publishWorker = Schedulers.io().createWorker();
         publishWorker.schedule(() -> Thread.currentThread().setName("rabbit-send-thread")); //TODO thread name
-        this.ackWorker = scheduler.createWorker();
+        this.ackWorker = Schedulers.io().createWorker();
         ackWorker.schedule(() -> Thread.currentThread().setName("rabbit-confirm-thread")); //TODO thread name
-        this.cacheCleanupWorker = scheduler.createWorker();
+        this.cacheCleanupWorker = Schedulers.io().createWorker();
         cacheCleanupWorker.schedule(() -> Thread.currentThread().setName("cache-cleanup")); //TODO thread name
 
         if (publisherConfirms) {
@@ -107,7 +110,7 @@ public class SingleChannelPublisher implements RabbitPublisher {
 
     @Override
     public Single<Void> call(Exchange exchange, RoutingKey routingKey, AMQP.BasicProperties basicProperties, Payload payload) {
-        return Single.<Void>create(subscriber -> schedulePublish(exchange, routingKey, basicProperties, payload, 1, 0, subscriber));
+        return Single.<Void>create(subscriber -> schedulePublish(exchange, routingKey, basicProperties, payload, 1, 0, subscriber)).observeOn(observeOnScheduler);
     }
 
     public Subscription schedulePublish(Exchange exchange,

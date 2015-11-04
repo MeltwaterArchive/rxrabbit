@@ -26,15 +26,15 @@ public class PublisherFactory {
     private final ChannelFactory channelFactory;
 
     private PublishEventListener publishEventListener = new PublishEventListener() {};
-    private Scheduler producerScheduler = Schedulers.io();
+    private Scheduler observeOnScheduler = Schedulers.computation();
 
     public PublisherFactory(ChannelFactory channelFactory, PublisherSettings settings) {
         this.channelFactory = channelFactory;
         this.settings = settings;
     }
 
-    public PublisherFactory setProducerScheduler(Scheduler producerScheduler) {
-        this.producerScheduler = producerScheduler;
+    public PublisherFactory setObserveOnScheduler(Scheduler observeOnScheduler) {
+        this.observeOnScheduler = observeOnScheduler;
         return this;
     }
 
@@ -54,7 +54,7 @@ public class PublisherFactory {
                     channelFactory,
                     settings.isPublisher_confirms(),
                     settings.getRetry_count(),
-                    producerScheduler,
+                    observeOnScheduler,
                     publishEventListener,
                     settings.getPublish_timeout_secs(),
                     settings.getClose_timeout_millis(),

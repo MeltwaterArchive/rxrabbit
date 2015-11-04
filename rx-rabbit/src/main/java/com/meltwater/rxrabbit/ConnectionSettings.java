@@ -3,6 +3,7 @@ package com.meltwater.rxrabbit;
 import com.google.common.base.Joiner;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -14,12 +15,19 @@ import java.util.Map;
  */
 public class ConnectionSettings {
 
-    private int heartbeat                   = 10; //in seconds
-    private int connection_timeout_millis   = 30_000;
-    private int shutdown_timeout_millis     = 30_000;
-    private int handshake_timeout_millis    = 10_000;
-    private int frame_max                   = 0; //0 = Infinite
-    private Map<String,String> client_properties = null;
+    public static final int DEFAULT_HEARTBEAT = 10;
+    public static final int DEFAULT_CONNECTION_TIMEOUT = 30_000;
+    public static final int DEFAULT_TIMEOUT_MILLIS = 30_000;
+    public static final int DEFAULT_HANDSHAKE_MILLIS = 10_000;
+    public static final int DEFAULT_FRAME_MAX = 0;
+
+    private int heartbeat                   = DEFAULT_HEARTBEAT; //in seconds
+    private int connection_timeout_millis   = DEFAULT_CONNECTION_TIMEOUT;
+    private int shutdown_timeout_millis     = DEFAULT_TIMEOUT_MILLIS;
+    private int handshake_timeout_millis    = DEFAULT_HANDSHAKE_MILLIS;
+    private int frame_max                   = DEFAULT_FRAME_MAX; //0 = Infinite
+
+    private Map<String,String> client_properties = new HashMap<>();
 
     /*
     //These params below are here for reference, but they are not yet implemented

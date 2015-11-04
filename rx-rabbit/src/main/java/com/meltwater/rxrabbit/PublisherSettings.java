@@ -1,11 +1,19 @@
 package com.meltwater.rxrabbit;
 
 public class PublisherSettings {
-    private int num_channels            =1;
-    private boolean publisher_confirms  =true;
-    private int retry_count             =3; //0 or negative means infinite
-    private long publish_timeout_secs   =30;
-    private long close_timeout_millis   =10_000;
+
+    public static final int RETRY_FOREVER = -1;
+    public static final int DEFAULT_RETRY_COUNT = 3;
+    public static final boolean DEFAULT_PUBLISHER_CONFIRM = true;
+    public static final int DEFAULT_NUM_CHANNELS = 1;
+    public static final int DEFAULT_PUBLISH_TIMEOUT_SECS = 30;
+    public static final int DEFAULT_CLOSE_TIMEOUT_MILLIS = 10_000;
+
+    private int num_channels            = DEFAULT_NUM_CHANNELS;
+    private boolean publisher_confirms  = DEFAULT_PUBLISHER_CONFIRM;
+    private int retry_count             = DEFAULT_RETRY_COUNT;
+    private long publish_timeout_secs   = DEFAULT_PUBLISH_TIMEOUT_SECS;
+    private long close_timeout_millis   = DEFAULT_CLOSE_TIMEOUT_MILLIS;
 
     public int getNum_channels() {
         return num_channels;
@@ -39,6 +47,7 @@ public class PublisherSettings {
     }
 
     public PublisherSettings withRetryCount(int retry_count) {
+        assert retry_count >= RETRY_FOREVER;
         this.retry_count = retry_count;
         return this;
     }

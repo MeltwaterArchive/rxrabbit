@@ -15,6 +15,7 @@ import com.rabbitmq.client.ShutdownSignalException;
 import rx.Observable;
 import rx.Scheduler;
 import rx.Subscriber;
+import rx.functions.Func1;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -44,7 +45,8 @@ public class SingleChannelConsumer implements RabbitConsumer {
 
     public SingleChannelConsumer(ChannelFactory channelFactory,
                                  String queue,
-                                 int preFetchCount, String tagPrefix,
+                                 int preFetchCount, 
+                                 String tagPrefix,
                                  int maxReconnectAttempts,
                                  long closeTimeout,
                                  Scheduler scheduler,
@@ -61,56 +63,71 @@ public class SingleChannelConsumer implements RabbitConsumer {
 
     @Override
     public synchronized Observable<Message> consume() {
-        final AtomicBoolean running = new AtomicBoolean(false);
-        final AtomicInteger connectAttempt = new AtomicInteger();
-        final AtomicReference<InternalConsumer> consumerRef = new AtomicReference<>(null);
+        return Observable.defer(this::createObservable);
+    }
 
-        return create(
-                new Observable.OnSubscribe<Message>() {
-                    @Override
-                    public void call(Subscriber<? super Message> subscriber) {
-                        if (!subscriber.isUnsubscribed()) {
-                            if (running.get()) {
-                                subscriber.onError(new IllegalStateException("This observable can only be subscribed to once."));
-                            } else {
-                                running.set(true);
-                            }
-                            try {
-                                startConsuming(subscriber, consumerRef);
-                                connectAttempt.set(0);
-                            } catch (Exception e) {
-                                log.errorWithParams("Unexpected error when registering the rabbit consumer", e);
-                                subscriber.onError(e);
-                            }
-                        }
+    private static class RetryHandler implements Func1<Observable<? extends Throwable>, Observable<?>> {
+        private final AtomicInteger connectAttempt = new AtomicInteger();
+        private final int maxReconnectAttempts;
+
+        public RetryHandler(int maxReconnectAttempts) {
+            this.maxReconnectAttempts = maxReconnectAttempts;
+        }
+
+        @Override
+        public Observable<?> call(Observable<? extends Throwable> observable) {
+            return observable.flatMap(throwable -> {
+                int conAttempt = connectAttempt.get();
+                if (maxReconnectAttempts <= 0 || conAttempt < maxReconnectAttempts) {
+                    final int delaySec = Fibonacci.getDelaySec(conAttempt);
+                    connectAttempt.incrementAndGet();
+                    log.infoWithParams("Scheduling attempting to restart consumer",
+                            "attempt", connectAttempt,
+                            "delaySeconds", delaySec);
+                    return Observable.timer(delaySec, TimeUnit.SECONDS);
+                } else {
+                    return Observable.error(throwable);
+                }
+            });
+        }
+
+        public void reset() {
+            connectAttempt.set(0);
+        }
+    }
+
+    private Observable<Message> createObservable() {
+        final AtomicReference<InternalConsumer> consumerRef = new AtomicReference<>(null);
+        final RetryHandler retryHandler = new RetryHandler(maxReconnectAttempts);
+
+        return create(new Observable.OnSubscribe<Message>() {
+            @Override
+            public void call(Subscriber<? super Message> subscriber) {
+                if (!subscriber.isUnsubscribed()) {
+                    try {
+                        startConsuming(subscriber, consumerRef);
+                    } catch (Exception e) {
+                        log.errorWithParams("Unexpected error when registering the rabbit consumer", e);
+                        subscriber.onError(e); //TODO filter stack trace
                     }
-                })
-                .retryWhen(observable -> observable.flatMap(throwable -> {
-                    if (throwable instanceof IllegalStateException) {
-                        return Observable.error(throwable);
-                    }
-                    terminate(running, consumerRef);
-                    int conAttempt = connectAttempt.get();
-                    if (maxReconnectAttempts <= 0 || conAttempt < maxReconnectAttempts) {
-                        final int delaySec = Fibonacci.getDelaySec(conAttempt);
-                        connectAttempt.incrementAndGet();
-                        log.infoWithParams("Scheduling attempting to restart consumer",
-                                "attempt", connectAttempt,
-                                "delaySeconds", delaySec);
-                        return Observable.timer(delaySec, TimeUnit.SECONDS);
-                    } else {
-                        return Observable.error(throwable);
-                    }
-                }))
+                }
+            }
+        })
+                // If we ever successfully get a message, we should reset the error handler
+                .doOnNext(message -> retryHandler.reset())
+                // On error, make sure to close the existing channel with an error before using the retryHandler
+                .doOnError(throwable -> terminate(consumerRef))
+                .retryWhen(retryHandler)
+                // handle back pressure by buffering
                 .onBackpressureBuffer()
+                // If someone unsubscribes, close the channel cleanly
                 .doOnUnsubscribe(() -> close(consumerRef));
     }
 
-    private synchronized void terminate(AtomicBoolean started, AtomicReference<InternalConsumer> consumer) {
+    private synchronized void terminate(AtomicReference<InternalConsumer> consumer) {
         if(consumer.get()!=null) {
-            consumer.get().closeWitError();
+            consumer.get().closeWithError();
         }
-        started.set(false);
     }
 
     private synchronized void close(AtomicReference<InternalConsumer> consumer) {
@@ -379,7 +396,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
             channel.close();
         }
 
-        void closeWitError() {
+        void closeWithError() {
             channel.closeWithError();
         }
     }

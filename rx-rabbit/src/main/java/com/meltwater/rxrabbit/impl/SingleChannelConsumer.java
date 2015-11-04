@@ -72,7 +72,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
                         if (!subscriber.isUnsubscribed()) {
                             if (running.get()) {
                                 subscriber.onError(new IllegalStateException("This observable can only be subscribed to once."));
-                            }else{
+                            } else {
                                 running.set(true);
                             }
                             try {
@@ -89,7 +89,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
                     if (throwable instanceof IllegalStateException) {
                         return Observable.error(throwable);
                     }
-                    terminate(running,consumerRef);
+                    terminate(running, consumerRef);
                     int conAttempt = connectAttempt.get();
                     if (maxReconnectAttempts <= 0 || conAttempt < maxReconnectAttempts) {
                         final int delaySec = Fibonacci.getDelaySec(conAttempt);
@@ -149,6 +149,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
         private final Scheduler.Worker ackWorker;
         private final Scheduler.Worker deliveryWorker;
 
+        private Scheduler scheduler;
         private final long closeTimeout;
 
         private final AtomicBoolean stopping = new AtomicBoolean(false);
@@ -167,6 +168,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
                                 AtomicLong deliveryOffset,
                                 AtomicLong largestSeenDeliverTag) {
             this.channel = channel;
+            this.scheduler = scheduler;
             this.closeTimeout = closeTimeout;
             this.subscriber = subscriber;
             this.consumeEventListener = consumeEventListener;
@@ -341,7 +343,16 @@ public class SingleChannelConsumer implements RabbitConsumer {
                 );
             }
             long startTime = System.currentTimeMillis();
+            final Scheduler.Worker closeProgressWorker = scheduler.createWorker();
+            closeProgressWorker.schedule(() -> Thread.currentThread().setName("consumer-close-progress"));
+            closeProgressWorker.schedulePeriodically(() -> {
+                log.infoWithParams("Closing down consumer, waiting for outstanding acks",
+                        "unAckedMessages", outstandingAcks.get(),
+                        "millisWaited", System.currentTimeMillis() - startTime,
+                        "closeTimeout", closeTimeout);
+            }, 5,5,TimeUnit.SECONDS);
             synchronized (outstandingAcks) {
+
                 while (outstandingAcks.get() > 0) {
                     try {
                         outstandingAcks.wait(100);
@@ -364,6 +375,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
                 }
             }
             log.infoWithParams("Closing the channel and stopping workers.");
+            closeProgressWorker.unsubscribe();
             channel.close();
         }
 

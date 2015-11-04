@@ -5,7 +5,6 @@ import rx.Single;
 import rx.functions.Func4;
 
 import java.io.Closeable;
-import java.io.IOException;
 
 /**
  * A publisher can publish amqp messages to an amqp exchange.

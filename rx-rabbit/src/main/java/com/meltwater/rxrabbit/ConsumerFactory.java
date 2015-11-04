@@ -26,7 +26,7 @@ public class ConsumerFactory {
     private final ConsumerSettings settings;
 
     private ConsumeEventListener consumeEventListener = new ConsumeEventListener() {};
-    private Scheduler consumerScheduler = Schedulers.io();
+    private Scheduler consumerObserveOnScheduler = Schedulers.computation();
 
     public ConsumerFactory(ChannelFactory channelFactory, ConsumerSettings settings) {
         this.settings = settings;
@@ -38,8 +38,8 @@ public class ConsumerFactory {
         return this;
     }
 
-    public ConsumerFactory setConsumerScheduler(Scheduler consumerScheduler) {
-        this.consumerScheduler = consumerScheduler;
+    public ConsumerFactory setConsumerObserveOnScheduler(Scheduler consumerObserveOnScheduler) {
+        this.consumerObserveOnScheduler = consumerObserveOnScheduler;
         return this;
     }
 
@@ -56,7 +56,7 @@ public class ConsumerFactory {
                 settings.getConsumer_tag_prefix() + "{" + queue + "}-consumer",
                 settings.getRetry_count(),
                 settings.getClose_timeout_millis(),
-                consumerScheduler,
+                consumerObserveOnScheduler,
                 consumeEventListener);
         List<Observable<Message>> consumers = new ArrayList<>();
         for(int i=0; i<settings.getNum_channels(); i++){

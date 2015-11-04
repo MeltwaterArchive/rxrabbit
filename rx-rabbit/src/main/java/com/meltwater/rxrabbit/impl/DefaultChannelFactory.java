@@ -4,9 +4,9 @@ import com.meltwater.rxrabbit.AdminChannel;
 import com.meltwater.rxrabbit.BrokerAddresses;
 import com.meltwater.rxrabbit.ChannelFactory;
 import com.meltwater.rxrabbit.ChannelWrapper;
+import com.meltwater.rxrabbit.ConnectionSettings;
 import com.meltwater.rxrabbit.ConsumeChannel;
 import com.meltwater.rxrabbit.PublishChannel;
-import com.meltwater.rxrabbit.RabbitSettings;
 import com.meltwater.rxrabbit.util.Logger;
 import com.rabbitmq.client.AMQP;
 import com.rabbitmq.client.Channel;
@@ -16,16 +16,17 @@ import com.rabbitmq.client.ConnectionFactory;
 import com.rabbitmq.client.Consumer;
 import com.rabbitmq.client.GetResponse;
 import com.rabbitmq.client.impl.AMQConnection;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TimeZone;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
@@ -36,9 +37,9 @@ public class DefaultChannelFactory implements ChannelFactory {
     private final Map<ChannelType, ConnectionInfo> conToChannel = new HashMap<>();
 
     private final BrokerAddresses addresses;
-    private final RabbitSettings settings;
+    private final ConnectionSettings settings;
 
-    public DefaultChannelFactory(BrokerAddresses addresses, RabbitSettings settings) {
+    public DefaultChannelFactory(BrokerAddresses addresses, ConnectionSettings settings) {
         assert !addresses.getAddresses().isEmpty();
         this.addresses = addresses;
         this.settings = settings;
@@ -125,9 +126,8 @@ public class DefaultChannelFactory implements ChannelFactory {
                 }
             }
             log.infoWithParams("Closed and disposed "+connectionInfo.type+" connection.",
-                    "name",  connectionInfo.name,
-                    "connectTime", connectionInfo.startTime,
                     "connectionType", connectionInfo.type,
+                    "properties", connectionInfo.clientProperties,
                     "wasOpen", connectionIsOpen);
         }
     }
@@ -147,8 +147,7 @@ public class DefaultChannelFactory implements ChannelFactory {
         info.channels.add(channel);
         log.infoWithParams("Successfully created "+type+" channel.",
                 "channel", channel,
-                "connectionName", info.name,
-                "connectTime", info.startTime);
+                "properties", info.clientProperties);
         return channel;
     }
 
@@ -161,14 +160,12 @@ public class DefaultChannelFactory implements ChannelFactory {
                 conToChannel.remove(connectionType);
             }
         }
-        String connectionName = settings.app_instance_id + "-" + connectionType;
-        DateTime startTime = new DateTime(DateTimeZone.UTC);
 
-        Map<String, Object> clientProperties = new HashMap<>(); //TODO allow the user to add more properties to this map...
-        clientProperties.put("app_id", settings.app_instance_id);
-        clientProperties.put("name", connectionName);
-        clientProperties.put("connect_time", startTime.toString());
-        clientProperties.put("connection_type", connectionType.toString());
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        Date startTime = new Date();
+        sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
+        settings.getClient_properties().put("connection_type", connectionType.toString());
+        settings.getClient_properties().put("connect_time", sdf.format(startTime)+"Z");
 
         //TODO use all the values in addresses (connect to them in random? order (or use a configurable/programmable strategy??) )
         ConnectionFactory cf = new ConnectionFactory();
@@ -177,12 +174,12 @@ public class DefaultChannelFactory implements ChannelFactory {
         cf.setPort(addresses.get(0).port);
         cf.setHost(addresses.get(0).host);
         cf.setVirtualHost(addresses.get(0).virtualHost);
-        cf.setRequestedHeartbeat(settings.heartbeat);
-        cf.setConnectionTimeout(settings.connection_timeout_millis);
-        cf.setShutdownTimeout(settings.shutdown_timeout_millis);
-        cf.setRequestedFrameMax(settings.frame_max);
-        cf.setHandshakeTimeout(settings.handshake_timeout_millis);
-        cf.setClientProperties(clientProperties);
+        cf.setRequestedHeartbeat(settings.getHeartbeat());
+        cf.setConnectionTimeout(settings.getConnection_timeout_millis());
+        cf.setShutdownTimeout(settings.getShutdown_timeout_millis());
+        cf.setRequestedFrameMax(settings.getFrame_max());
+        cf.setHandshakeTimeout(settings.getHandshake_timeout_millis());
+        cf.setClientProperties((Map)settings.getClient_properties());
         //cf.setSocketConfigurator(); NOTE is this worth investigating??
         cf.setRequestedChannelMax(0);//Hard coded ..
         cf.setAutomaticRecoveryEnabled(false);//Hard coded ..
@@ -193,17 +190,12 @@ public class DefaultChannelFactory implements ChannelFactory {
                 new ConnectionInfo(
                         connection,
                         new ArrayList<>(),
-                        settings.app_instance_id,
-                        startTime,
-                        connectionType,
-                        connectionName)
+                        settings.getClient_properties(),
+                        connectionType)
         );
         log.infoWithParams("Successfully created "+connectionType+" connection to broker.",
                 "address", addresses.get(0).toString(),
                 "localPort", ((AMQConnection) connection).getLocalPort(),
-                "name", connectionName,
-                "connectTime", startTime.toString(),
-                "connectionType", connectionType,
                 "settings", settings.toString());
         return connection;
     }
@@ -211,25 +203,20 @@ public class DefaultChannelFactory implements ChannelFactory {
     public static class ConnectionInfo {
         final Connection connection;
         final List<ChannelImpl> channels;
-        final String appId;
-        final DateTime startTime;
+        final Map<String, String> clientProperties;
         final ChannelType type;
-        final String name;
-        ConnectionInfo(Connection connection, List<ChannelImpl> channels, String appId, DateTime startTime, ChannelType type, String name) {
+        ConnectionInfo(Connection connection, List<ChannelImpl> channels, Map<String,String> clientProperties, ChannelType type) {
             this.connection = connection;
             this.channels = channels;
-            this.appId = appId;
-            this.startTime = startTime;
+            this.clientProperties = clientProperties;
             this.type = type;
-            this.name = name;
         }
         @Override
         public String toString() {
-            return "ConnectionInfo{" +
-                    ", channels=" + channels.size() +
-                    ", startTime=" + startTime +
+            return "Connection{" +
+                    ", numChannels=" + channels.size() +
                     ", type=" + type +
-                    ", name='" + name + '\'' +
+                    ", properties='" + clientProperties.toString() + '\'' +
                     '}';
         }
     }

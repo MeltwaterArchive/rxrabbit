@@ -4,11 +4,17 @@ package com.meltwater.rxrabbit;
  * This class contains rabbitmq consumer settings used by the {@link ConsumerFactory}
  */
 public class ConsumerSettings {
-    
-    private int num_channels            = 1;
-    private int pre_fetch_count         = 256;
-    private int retry_count             = -1; //0 or lower means forever
-    private long close_timeout_millis   = 10_000; //0 means forever
+
+    public static final int DEFAULT_NUM_CHANNELS = 1;
+    public static final int DEFAULT_PREFETCH_COUNT = 256;
+    public static final int RETRY_FOREVER=-1;
+    public static final int DEFAULT_RETRY_COUNT = RETRY_FOREVER;
+    public static final int DEFAULT_CLOSE_TIMEOUT_MILLIS = 10_000;
+
+    private int num_channels            = DEFAULT_NUM_CHANNELS;
+    private int pre_fetch_count         = DEFAULT_PREFETCH_COUNT;
+    private int retry_count             = DEFAULT_RETRY_COUNT; //0 or lower means forever
+    private long close_timeout_millis   = DEFAULT_CLOSE_TIMEOUT_MILLIS; //0 means forever
     private String consumer_tag_prefix  = "";
 
     public int getNum_channels() {
@@ -49,6 +55,7 @@ public class ConsumerSettings {
     }
 
     public ConsumerSettings withRetryCount(int retry_count) {
+        assert retry_count >= RETRY_FOREVER;
         this.retry_count = retry_count;
         return this;
     }

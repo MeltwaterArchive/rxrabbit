@@ -1,10 +1,6 @@
 package com.meltwater.rxrabbit.impl;
 
-import com.meltwater.rxrabbit.Acknowledger;
-import com.meltwater.rxrabbit.ChannelFactory;
-import com.meltwater.rxrabbit.ConsumeChannel;
-import com.meltwater.rxrabbit.ConsumeEventListener;
-import com.meltwater.rxrabbit.Message;
+import com.meltwater.rxrabbit.*;
 import com.meltwater.rxrabbit.util.Fibonacci;
 import com.meltwater.rxrabbit.util.Logger;
 import com.rabbitmq.client.AMQP;
@@ -26,6 +22,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static com.meltwater.rxrabbit.ConsumerSettings.*;
 import static rx.Observable.create;
 
 //TODO javadoc!!
@@ -78,7 +75,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
         public Observable<?> call(Observable<? extends Throwable> observable) {
             return observable.flatMap(throwable -> {
                 int conAttempt = connectAttempt.get();
-                if (maxReconnectAttempts <= 0 || conAttempt < maxReconnectAttempts) {
+                if (maxReconnectAttempts == RETRY_FOREVER || conAttempt < maxReconnectAttempts) {
                     final int delaySec = Fibonacci.getDelaySec(conAttempt);
                     connectAttempt.incrementAndGet();
                     log.infoWithParams("Scheduling attempting to restart consumer",

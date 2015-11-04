@@ -4,14 +4,7 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalCause;
 import com.google.common.cache.RemovalNotification;
-import com.meltwater.rxrabbit.ChannelFactory;
-import com.meltwater.rxrabbit.Exchange;
-import com.meltwater.rxrabbit.Payload;
-import com.meltwater.rxrabbit.PublishChannel;
-import com.meltwater.rxrabbit.PublishEvent;
-import com.meltwater.rxrabbit.PublishEventListener;
-import com.meltwater.rxrabbit.RabbitPublisher;
-import com.meltwater.rxrabbit.RoutingKey;
+import com.meltwater.rxrabbit.*;
 import com.meltwater.rxrabbit.util.Fibonacci;
 import com.meltwater.rxrabbit.util.Logger;
 import com.rabbitmq.client.AMQP;
@@ -28,6 +21,8 @@ import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
+
+import static com.meltwater.rxrabbit.PublisherSettings.*;
 
 //TODO javadoc
 public class SingleChannelPublisher implements RabbitPublisher {
@@ -175,7 +170,7 @@ public class SingleChannelPublisher implements RabbitPublisher {
 
     private synchronized PublishChannel getChannel() throws IOException, TimeoutException {
         if (channel==null){
-            for (int i = 0; i < maxRetries || maxRetries<=0; i++) {
+            for (int i = 0; i < maxRetries || maxRetries==RETRY_FOREVER; i++) {
                 try {
                     Thread.sleep(Fibonacci.getDelayMillis(i));
                     log.infoWithParams("Creating publish channel.");
@@ -375,7 +370,7 @@ public class SingleChannelPublisher implements RabbitPublisher {
 
         public void nack(Exception e) {
             double maxRetries = publisher.getMaxRetries();
-            if (attempt < maxRetries || maxRetries <= 0) {
+            if (attempt < maxRetries || maxRetries == RETRY_FOREVER) {
                 int delaySec = Fibonacci.getDelaySec(attempt);
                 publisher.afterIntermediateFail(this, e, delaySec);
                 publisher.schedulePublish(exchange, routingKey, props, payload, attempt + 1, delaySec, subscriber);

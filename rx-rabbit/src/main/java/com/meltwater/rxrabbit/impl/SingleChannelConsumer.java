@@ -30,6 +30,7 @@ import static rx.Observable.create;
 public class SingleChannelConsumer implements RabbitConsumer {
 
     private final static AtomicInteger consumerCount = new AtomicInteger();
+
     private final static Logger log = new Logger(SingleChannelConsumer.class);
 
     private final ConsumeEventListener metricsReporter;
@@ -43,7 +44,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
 
     public SingleChannelConsumer(ChannelFactory channelFactory,
                                  String queue,
-                                 int preFetchCount, 
+                                 int preFetchCount,
                                  String tagPrefix,
                                  int maxReconnectAttempts,
                                  long closeTimeout,
@@ -147,9 +148,9 @@ public class SingleChannelConsumer implements RabbitConsumer {
         );
         InternalConsumer cons;
         if (consumerRef.get()==null) {
-            cons = new InternalConsumer(channel, subscriber, closeTimeout, metricsReporter, new AtomicLong(), new AtomicLong());
+            cons = new InternalConsumer(channel, subscriber, closeTimeout, consumerTag, metricsReporter, new AtomicLong(), new AtomicLong());
         }else{
-            cons = new InternalConsumer(consumerRef.get(), channel, subscriber);
+            cons = new InternalConsumer(consumerRef.get(), consumerTag, channel, subscriber);
         }
         channel.basicConsume(
                 consumerTag,
@@ -177,6 +178,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
         public InternalConsumer(ConsumeChannel channel,
                                 Subscriber<? super Message> subscriber,
                                 long closeTimeout,
+                                String consumerTag,
                                 ConsumeEventListener consumeEventListener,
                                 AtomicLong deliveryOffset,
                                 AtomicLong largestSeenDeliverTag) {
@@ -186,15 +188,15 @@ public class SingleChannelConsumer implements RabbitConsumer {
             this.consumeEventListener = consumeEventListener;
             this.deliveryOffset = deliveryOffset;
             this.largestSeenDeliverTag = largestSeenDeliverTag;
-            this.deliveryWorker = Schedulers.io().createWorker(); //TODO name the threads better
-            deliveryWorker.schedule(() -> Thread.currentThread().setName("rabbit-consumer"));
-            this.ackWorker = Schedulers.io().createWorker(); //TODO name the threads better
-            ackWorker.schedule(() -> Thread.currentThread().setName("rabbit-acknowledge"));
+            this.deliveryWorker = Schedulers.io().createWorker();
+            deliveryWorker.schedule(() -> Thread.currentThread().setName(consumerTag+"-delivery"));
+            this.ackWorker = Schedulers.io().createWorker();
+            ackWorker.schedule(() -> Thread.currentThread().setName(consumerTag+"-ack"));
             deliveryOffset.set(largestSeenDeliverTag.get());
         }
 
-        public InternalConsumer(InternalConsumer that, ConsumeChannel channel, Subscriber<? super Message> subscriber) {
-            this(channel, subscriber, that.closeTimeout, that.consumeEventListener, that.deliveryOffset, that.largestSeenDeliverTag);
+        public InternalConsumer(InternalConsumer that, String consumerTag, ConsumeChannel channel, Subscriber<? super Message> subscriber) {
+            this(channel, subscriber, that.closeTimeout, consumerTag, that.consumeEventListener, that.deliveryOffset, that.largestSeenDeliverTag);
         }
 
         @Override
@@ -356,13 +358,11 @@ public class SingleChannelConsumer implements RabbitConsumer {
             }
             long startTime = System.currentTimeMillis();
             final Scheduler.Worker closeProgressWorker = Schedulers.io().createWorker();
-            closeProgressWorker.schedule(() -> Thread.currentThread().setName("consumer-close-progress"));
-            closeProgressWorker.schedulePeriodically(() -> {
-                log.infoWithParams("Closing down consumer, waiting for outstanding acks",
-                        "unAckedMessages", outstandingAcks.get(),
-                        "millisWaited", System.currentTimeMillis() - startTime,
-                        "closeTimeout", closeTimeout);
-            }, 5,5,TimeUnit.SECONDS);
+            closeProgressWorker.schedule(() -> Thread.currentThread().setName(consumerTag+"-close"));
+            closeProgressWorker.schedulePeriodically(() -> log.infoWithParams("Closing down consumer, waiting for outstanding acks",
+                    "unAckedMessages", outstandingAcks.get(),
+                    "millisWaited", System.currentTimeMillis() - startTime,
+                    "closeTimeout", closeTimeout), 5,5,TimeUnit.SECONDS);
             synchronized (outstandingAcks) {
 
                 while (outstandingAcks.get() > 0) {
@@ -388,6 +388,8 @@ public class SingleChannelConsumer implements RabbitConsumer {
             }
             log.infoWithParams("Closing the channel and stopping workers.");
             closeProgressWorker.unsubscribe();
+            deliveryWorker.unsubscribe();
+            ackWorker.unsubscribe();
             channel.close();
         }
 

@@ -18,9 +18,11 @@ import rx.schedulers.Schedulers;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static com.meltwater.rxrabbit.PublisherSettings.*;
@@ -46,8 +48,8 @@ public class SingleChannelPublisher implements RabbitPublisher {
     private final AtomicLong largestSeqSeen = new AtomicLong(0);
     private final AtomicLong seqOffset = new AtomicLong(0);
 
-
     private PublishChannel channel = null;
+    private AtomicBoolean closed = new AtomicBoolean(false);
 
     public SingleChannelPublisher(ChannelFactory channelFactory,
                                   boolean publisherConfirms,
@@ -84,29 +86,38 @@ public class SingleChannelPublisher implements RabbitPublisher {
 
 
     @Override
-    public void close() throws IOException {
-        //TODO add logging ??
-        //TODO what to do with the non returned Singles???
+    public synchronized void close() throws IOException {
+        closed.set(true);
+        log.infoWithParams("Closing publisher.", "nonConfirmedMessages", tagToMessage.asMap().size());
         try {
-            //TODO read the boolean returned from waitFor..
-            if (closeTimeoutMillis >0){
-                boolean allConfirmed = channel.waitForConfirms(closeTimeoutMillis);
-            }else {
-                channel.waitForConfirms();
+            boolean allConfirmed = closeTimeoutMillis>0?channel.waitForConfirms(closeTimeoutMillis):channel.waitForConfirms();
+            if (allConfirmed) {
+                log.infoWithParams("All published messages successfully confirmed.");
             }
         } catch (Exception e) {
-            log.warnWithParams("Error when waiting for confirms during publisher close.");
-            //TODO send onError to all subscribers??
+            log.warnWithParams("Error when waiting for confirms.",
+                    "closeTimeoutMillis", closeTimeoutMillis,
+                    "nonConfirmedMessages", tagToMessage.asMap().size(),
+                    "error", e);
         }finally {
+            cacheCleanupWorker.unsubscribe();
+            if (tagToMessage.asMap().size()>0) {
+                log.warnWithParams("Not all messages were confirmed during the close timeout",
+                        "closeTimeoutMillis", closeTimeoutMillis,
+                        "nonConfirmedMessages", tagToMessage.asMap().size());
+                for (Map.Entry<Long,UnconfirmedMessage> entry :tagToMessage.asMap().entrySet()){
+                    entry.getValue().nack(new IllegalStateException("The publisher is closed and will not accept any more messages."));
+                }
+                tagToMessage.invalidateAll();
+                tagToMessage.cleanUp();
+            }
             if(channel != null){
                 channel.close();
             }
+            publishWorker.unsubscribe();
+            ackWorker.unsubscribe();
         }
-        publishWorker.unsubscribe();
-        ackWorker.unsubscribe();
-        cacheCleanupWorker.unsubscribe();
     }
-
 
     @Override
     public Single<Void> call(Exchange exchange, RoutingKey routingKey, AMQP.BasicProperties basicProperties, Payload payload) {
@@ -120,6 +131,7 @@ public class SingleChannelPublisher implements RabbitPublisher {
                                         int attempt,
                                         int delaySec,
                                         SingleSubscriber<? super Void> subscriber) {
+        if (closed.get()) subscriber.onError(new IllegalStateException("The publisher is closed and will not accept any more messages."));
         long schedulingStart = System.currentTimeMillis();
         return publishWorker.schedule(() -> basicPublish(exchange, routingKey, props, payload, attempt, subscriber, schedulingStart), delaySec, TimeUnit.SECONDS);
     }

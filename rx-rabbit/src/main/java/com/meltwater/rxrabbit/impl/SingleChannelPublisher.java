@@ -72,15 +72,12 @@ public class SingleChannelPublisher implements RabbitPublisher {
         ackWorker.schedule(() -> Thread.currentThread().setName("rabbit-confirm-thread")); //TODO thread name
         this.cacheCleanupWorker = Schedulers.io().createWorker();
         cacheCleanupWorker.schedule(() -> Thread.currentThread().setName("cache-cleanup")); //TODO thread name
-
+        this.tagToMessage = CacheBuilder.<Long, UnconfirmedMessage>newBuilder()
+                .expireAfterAccess(confirmsTimeoutSec, TimeUnit.SECONDS)
+                .removalListener(this::handleCacheRemove)
+                .build();
         if (publisherConfirms) {
-            this.tagToMessage = CacheBuilder.<Long, UnconfirmedMessage>newBuilder()
-                    .expireAfterAccess(confirmsTimeoutSec, TimeUnit.SECONDS)
-                    .removalListener(this::handleCacheRemove)
-                    .build();
             cacheCleanupWorker.schedulePeriodically(tagToMessage::cleanUp, cacheCleanupTriggerSecs, cacheCleanupTriggerSecs, TimeUnit.SECONDS);
-        }else{
-            this.tagToMessage = null;
         }
     }
 

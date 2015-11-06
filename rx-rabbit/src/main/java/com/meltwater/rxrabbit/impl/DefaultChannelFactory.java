@@ -1,5 +1,6 @@
 package com.meltwater.rxrabbit.impl;
 
+import com.google.common.collect.Collections2;
 import com.meltwater.rxrabbit.AdminChannel;
 import com.meltwater.rxrabbit.BrokerAddresses;
 import com.meltwater.rxrabbit.ChannelFactory;
@@ -28,7 +29,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.concurrent.TimeoutException;
-import java.util.stream.Collectors;
 
 public class DefaultChannelFactory implements ChannelFactory {
 
@@ -46,7 +46,7 @@ public class DefaultChannelFactory implements ChannelFactory {
     }
 
     public List<ConnectionInfo> getOpenConnections(){
-        return conToChannel.values().stream().filter(c -> c.connection.isOpen()).collect(Collectors.toList());
+        return new ArrayList<>(Collections2.filter(conToChannel.values(), c -> c.connection.isOpen()));
     }
 
     @Override
@@ -189,7 +189,7 @@ public class DefaultChannelFactory implements ChannelFactory {
         conToChannel.put(connectionType,
                 new ConnectionInfo(
                         connection,
-                        new ArrayList<>(),
+                        new ArrayList<ChannelImpl>(),
                         settings.getClient_properties(),
                         connectionType)
         );

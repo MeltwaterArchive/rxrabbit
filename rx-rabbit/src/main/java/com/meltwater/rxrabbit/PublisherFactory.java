@@ -25,7 +25,8 @@ public class PublisherFactory {
     private final PublisherSettings settings;
     private final ChannelFactory channelFactory;
 
-    private PublishEventListener publishEventListener = new PublishEventListener() {};
+    private PublishEventListener publishEventListener = getPublishEventListener();
+
     private Scheduler observeOnScheduler = Schedulers.computation();
 
     public PublisherFactory(ChannelFactory channelFactory, PublisherSettings settings) {
@@ -44,6 +45,7 @@ public class PublisherFactory {
     }
 
     public RabbitPublisher createPublisher() {
+        assert settings.getNum_channels()>0;
         log.infoWithParams("Creating publisher.",
                 "publishChannels", settings.getNum_channels(),
                 "publisherConfirms", settings.isPublisher_confirms(),
@@ -61,6 +63,10 @@ public class PublisherFactory {
                     1));
         }
         return new RoundRobinPublisher(publishers);
+    }
+
+    private PublishEventListener getPublishEventListener() {
+        return new NoopPublishEventListener();
     }
 
 }

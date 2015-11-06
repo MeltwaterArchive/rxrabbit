@@ -4,7 +4,14 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalCause;
 import com.google.common.cache.RemovalNotification;
-import com.meltwater.rxrabbit.*;
+import com.meltwater.rxrabbit.ChannelFactory;
+import com.meltwater.rxrabbit.Exchange;
+import com.meltwater.rxrabbit.Payload;
+import com.meltwater.rxrabbit.PublishChannel;
+import com.meltwater.rxrabbit.PublishEvent;
+import com.meltwater.rxrabbit.PublishEventListener;
+import com.meltwater.rxrabbit.RabbitPublisher;
+import com.meltwater.rxrabbit.RoutingKey;
 import com.meltwater.rxrabbit.util.Fibonacci;
 import com.meltwater.rxrabbit.util.Logger;
 import com.rabbitmq.client.AMQP;
@@ -25,11 +32,12 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static com.meltwater.rxrabbit.PublisherSettings.*;
+import static com.meltwater.rxrabbit.PublisherSettings.RETRY_FOREVER;
 
 //TODO javadoc
 public class SingleChannelPublisher implements RabbitPublisher {
 
+    private static final AtomicLong publisherInstanceNr = new AtomicLong();
     private static final Logger log = new Logger(SingleChannelPublisher.class);
 
     private final int maxRetries;
@@ -67,11 +75,12 @@ public class SingleChannelPublisher implements RabbitPublisher {
         this.metricsReporter = metricsReporter;
 
         this.publishWorker = Schedulers.io().createWorker();
-        publishWorker.schedule(() -> Thread.currentThread().setName("rabbit-send-thread")); //TODO thread name
+        final long instanceNr = publisherInstanceNr.incrementAndGet();
+        publishWorker.schedule(() -> Thread.currentThread().setName("rabbit-send-thread-"+instanceNr));
         this.ackWorker = Schedulers.io().createWorker();
-        ackWorker.schedule(() -> Thread.currentThread().setName("rabbit-confirm-thread")); //TODO thread name
+        ackWorker.schedule(() -> Thread.currentThread().setName("rabbit-confirm-thread-"+instanceNr));
         this.cacheCleanupWorker = Schedulers.io().createWorker();
-        cacheCleanupWorker.schedule(() -> Thread.currentThread().setName("cache-cleanup")); //TODO thread name
+        cacheCleanupWorker.schedule(() -> Thread.currentThread().setName("cache-cleanup-"+instanceNr));
         this.tagToMessage = CacheBuilder.<Long, UnconfirmedMessage>newBuilder()
                 .expireAfterAccess(confirmsTimeoutSec, TimeUnit.SECONDS)
                 .removalListener(this::handleCacheRemove)

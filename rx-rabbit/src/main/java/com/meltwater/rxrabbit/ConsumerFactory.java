@@ -25,7 +25,8 @@ public class ConsumerFactory {
     private final ChannelFactory channelFactory;
     private final ConsumerSettings settings;
 
-    private ConsumeEventListener consumeEventListener = new ConsumeEventListener() {};
+    private ConsumeEventListener consumeEventListener = getConsumeEventListener();
+
     private Scheduler consumerObserveOnScheduler = Schedulers.computation();
 
     public ConsumerFactory(ChannelFactory channelFactory, ConsumerSettings settings) {
@@ -63,6 +64,10 @@ public class ConsumerFactory {
             consumers.add(consumer.consume());
         }
         return Observable.merge(consumers);
+    }
+
+    private ConsumeEventListener getConsumeEventListener() {
+        return new NoopConsumeEventListener();
     }
 
 }

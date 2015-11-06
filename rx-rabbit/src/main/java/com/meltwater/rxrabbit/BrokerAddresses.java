@@ -1,6 +1,5 @@
 package com.meltwater.rxrabbit;
 
-
 import com.google.common.collect.ImmutableList;
 import com.rabbitmq.client.ConnectionFactory;
 
@@ -11,8 +10,6 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Spliterator;
-import java.util.function.Consumer;
 
 import static com.rabbitmq.client.ConnectionFactory.DEFAULT_HOST;
 import static com.rabbitmq.client.ConnectionFactory.DEFAULT_PASS;
@@ -57,16 +54,6 @@ public class BrokerAddresses implements Iterable<BrokerAddresses.BrokerAddress>{
     @Override
     public Iterator<BrokerAddress> iterator() {
         return addresses.iterator();
-    }
-
-    @Override
-    public void forEach(Consumer<? super BrokerAddress> action) {
-        addresses.forEach(action);
-    }
-
-    @Override
-    public Spliterator<BrokerAddress> spliterator() {
-        return addresses.spliterator();
     }
 
     public static class BrokerAddress {

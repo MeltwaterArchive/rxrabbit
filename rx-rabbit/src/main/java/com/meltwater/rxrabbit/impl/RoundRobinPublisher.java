@@ -24,12 +24,12 @@ public class RoundRobinPublisher implements RabbitPublisher {
     }
 
     @Override
-    public Single<Void> call(Exchange exchange, RoutingKey routingKey, AMQP.BasicProperties basicProperties, Payload payload) {
+    public synchronized Single<Void> call(Exchange exchange, RoutingKey routingKey, AMQP.BasicProperties basicProperties, Payload payload) {
         return publisherIterator.next().call(exchange, routingKey, basicProperties, payload);
     }
 
     @Override
-    public void close() throws IOException {
+    public synchronized void close() throws IOException {
         for (RabbitPublisher backingPublisher : backingPublishers) {
             backingPublisher.close();
         }

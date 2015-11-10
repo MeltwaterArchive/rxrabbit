@@ -96,12 +96,15 @@ public class SingleChannelPublisher implements RabbitPublisher {
         closed.set(true);
         log.infoWithParams("Closing publisher.", "nonConfirmedMessages", tagToMessage.asMap().size());
         try {
-            boolean allConfirmed = closeTimeoutMillis>0?channel.waitForConfirms(closeTimeoutMillis):channel.waitForConfirms();
-            if (allConfirmed) {
-                log.infoWithParams("All published messages successfully confirmed.");
+            if (channel != null && publisherConfirms) {
+                boolean allConfirmed = closeTimeoutMillis > 0 ? channel.waitForConfirms(closeTimeoutMillis) : channel.waitForConfirms();
+                if (allConfirmed) {
+                    log.infoWithParams("All published messages successfully confirmed.");
+                }
             }
         } catch (Exception e) {
             log.warnWithParams("Error when waiting for confirms.",
+                    "channelId", channel!=null?channel.getChannelNumber()+"":"null",
                     "closeTimeoutMillis", closeTimeoutMillis,
                     "nonConfirmedMessages", tagToMessage.asMap().size(),
                     "error", e);
@@ -128,7 +131,8 @@ public class SingleChannelPublisher implements RabbitPublisher {
 
     @Override
     public Single<Void> call(Exchange exchange, RoutingKey routingKey, AMQP.BasicProperties basicProperties, Payload payload) {
-        return Single.<Void>create(subscriber -> schedulePublish(exchange, routingKey, basicProperties, payload, 1, 0, subscriber)).observeOn(observeOnScheduler);
+        return Single.<Void>create(subscriber -> schedulePublish(exchange, routingKey, basicProperties, payload, 1, 0, subscriber))
+                .observeOn(observeOnScheduler);
     }
 
     public Subscription schedulePublish(Exchange exchange,
@@ -240,8 +244,9 @@ public class SingleChannelPublisher implements RabbitPublisher {
 
     private void handleChannelException(Exchange exchange, RoutingKey routingKey, AMQP.BasicProperties props, UnconfirmedMessage message, Exception e, String logMsg) {
         //TODO should we look at the error and do different things depending on the type??
-        log.errorWithParams(logMsg, e,
+        log.errorWithParams(logMsg,
                 "exchange", exchange,
+                "error", e,
                 "routingKey", routingKey,
                 "basicProperties", props);
         closeChannelWithError();

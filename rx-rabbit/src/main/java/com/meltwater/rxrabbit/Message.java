@@ -10,7 +10,7 @@ import java.util.Arrays;
  *
  * The message also contains an {@link Acknowledger} that must be used to report if the messages is should be acked or nacked.
  *
- * @see ConsumerFactory#createConsumer(String)
+ * @see DefaultConsumerFactory#createConsumer(String)
  */
 public class Message {
 
@@ -28,7 +28,7 @@ public class Message {
     public final Acknowledger acknowledger;
 
     /**
-     * The message properties. FOr example messageId, content type, and custom headers.
+     * The message properties. For example messageId, content type, and custom headers.
      */
     public final BasicProperties basicProperties;
 

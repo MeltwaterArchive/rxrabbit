@@ -22,7 +22,6 @@ public class RoutingKey {
         if (o == null || getClass() != o.getClass()) return false;
         RoutingKey that = (RoutingKey) o;
         return !(value != null ? !value.equals(that.value) : that.value != null);
-
     }
 
     @Override

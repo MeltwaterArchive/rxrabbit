@@ -30,7 +30,16 @@ import java.util.concurrent.atomic.AtomicReference;
 import static com.meltwater.rxrabbit.ConsumerSettings.RETRY_FOREVER;
 import static rx.Observable.create;
 
-//TODO javadoc!!
+/**
+ * A rabbit consumer that is using one {@link ConsumeChannel} and one {@link Consumer} at the time.
+ *
+ * If any io error is encountered in the communication with RabbitMQ then the {@link ConsumeChannel} will be discarded
+ * and a re-connect loop will be initiated. The re-connect loop can continue forever or stop after N attempts according to config.
+ *
+ * The messages delivered from RabbitMQ are wrapped up into a {@link Message} object and handed over to the caller
+ * on a {@link Scheduler} of your choice.
+ *
+ */
 public class SingleChannelConsumer implements RabbitConsumer {
 
     private final static AtomicInteger consumerCount = new AtomicInteger();
@@ -46,6 +55,17 @@ public class SingleChannelConsumer implements RabbitConsumer {
     private final String queue;
     private final int preFetchCount;
 
+    /**
+     *
+     * @param channelFactory used to create new channels when needed
+     * @param queue the queue to consume from
+     * @param preFetchCount the rabbit preFetchCount
+     * @param tagPrefix a prefix for the consumer tag, an ever increasing integer will be appended at the end
+     * @param maxReconnectAttempts how many times to try re-connects. 0 or negative number for trying forever
+     * @param closeTimeout the max time to wait before aborting/crashing close procedures
+     * @param observeOnScheduler the scheduler that the onNext(Message) will be called on
+     * @param consumeEventListener event listener that will be notified about message receive, failures and ack/nack events
+     */
     public SingleChannelConsumer(ChannelFactory channelFactory,
                                  String queue,
                                  int preFetchCount,
@@ -53,7 +73,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
                                  int maxReconnectAttempts,
                                  long closeTimeout,
                                  Scheduler observeOnScheduler,
-                                 ConsumeEventListener metricsReporter) {
+                                 ConsumeEventListener consumeEventListener) {
         this.queue = queue;
         this.channelFactory = channelFactory;
         this.preFetchCount = preFetchCount;
@@ -61,7 +81,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
         this.closeTimeout = closeTimeout;
         this.tagPrefix = tagPrefix;
         this.maxReconnectAttempts = maxReconnectAttempts;
-        this.metricsReporter = metricsReporter;
+        this.metricsReporter = consumeEventListener;
     }
 
     @Override
@@ -110,8 +130,10 @@ public class SingleChannelConsumer implements RabbitConsumer {
                     try {
                         startConsuming(subscriber, consumerRef);
                     } catch (Exception e) {
-                        log.errorWithParams("Unexpected error when registering the rabbit consumer", e);
-                        subscriber.onError(e); //TODO filter stack trace
+                        log.errorWithParams("Unexpected error when registering the rabbit consumer on the broker.",
+                                "",
+                                "error", e);
+                        subscriber.onError(e);
                     }
                 }
             }
@@ -207,6 +229,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
 
         @Override
         public void handleConsumeOk(String consumerTag) {
+            Thread.currentThread().setName("rabbit-internal-thread");
             this.consumerTag = consumerTag;
             log.infoWithParams("Consumer registered and ready to receive messages.",
                     "channel", channel.toString(),
@@ -379,7 +402,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
                                 "unAckedMessages", outstandingAcks.get());
                         break;
                     }
-                    //TODO maybe log shutdown the progress here??
+                    //TODO maybe log the shutdown progress here??
                     long timeWaited = System.currentTimeMillis() - startTime;
                     if (closeTimeout > 0 && timeWaited >= closeTimeout) {
                         log.warnWithParams("Close timeout reached with un-acked messages still pending",

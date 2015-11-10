@@ -1,7 +1,7 @@
 package com.meltwater.rxrabbit;
 
 /**
- * This class contains rabbitmq consumer settings used by the {@link ConsumerFactory}
+ * This class contains rabbitmq consumer settings used by the {@link DefaultConsumerFactory}
  */
 public class ConsumerSettings {
 

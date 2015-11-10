@@ -107,6 +107,7 @@ public class SingleChannelPublisher implements RabbitPublisher {
                     "error", e);
         }finally {
             cacheCleanupWorker.unsubscribe();
+            //TODO not covered in tests - add test!
             if (tagToMessage.asMap().size()>0) {
                 log.warnWithParams("Not all messages were confirmed during the close timeout",
                         "closeTimeoutMillis", closeTimeoutMillis,
@@ -325,6 +326,7 @@ public class SingleChannelPublisher implements RabbitPublisher {
         }
         @Override
         public void handleNack(long deliveryTag, boolean multiple) {
+            //TODO not covered in tests -  add test!
             ackWorker.schedule(() -> {
                 for (Long k : publisher.getAllPreviousTags(deliveryTag, multiple)) {
                     log.traceWithParams("Handling confirm-nack for delivery tag",

@@ -68,6 +68,7 @@ public class DefaultChannelFactory implements ChannelFactory {
 
     public synchronized void closeChannelWitError(ChannelImpl channel) {
         if(channel == null){
+            //TODO not covered in tests still valid?
             return;
         }
         final ConnectionInfo connectionInfo = conToChannel.get(channel.channelType);
@@ -83,6 +84,7 @@ public class DefaultChannelFactory implements ChannelFactory {
 
     public synchronized void closeChannel(ChannelImpl channel) {
         if(channel == null){
+            //TODO not covered in tests still valid?
             return;
         }
         ConnectionInfo info = conToChannel.get(channel.channelType);
@@ -157,6 +159,7 @@ public class DefaultChannelFactory implements ChannelFactory {
             if (conToChannel.get(connectionType).connection.isOpen()) {
                 return conToChannel.get(connectionType).connection;
             }else{
+                //TODO not covered in tests
                 conToChannel.remove(connectionType);
             }
         }

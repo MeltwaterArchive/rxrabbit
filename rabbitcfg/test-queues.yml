@@ -1,0 +1,44 @@
+exchanges:
+    test.in@/:
+        type: topic
+        durable: true
+        auto_delete: false
+        internal: false
+    test.in.dl@/:
+        type: topic
+        durable: true
+        auto_delete: false
+        internal: false
+    test.out@/:
+        type: topic
+        durable: true
+        auto_delete: false
+        internal: false
+
+queues:
+    test-in@/:
+        durable: true
+        auto_delete: false
+        arguments:
+            x-dead-letter-exchange: test.in.dl
+    test-in-dl@/:
+        durable: true
+        auto_delete: false
+    test-out@/:
+        durable: true
+        auto_delete: false
+
+
+bindings:
+    test.in@/:
+      - destination: test-in
+        destination_type: queue
+        routing_key: "#"
+    test.out@/:
+      - destination: test-out
+        destination_type: queue
+        routing_key: "#"
+    test.in.dl@/:
+      - destination: test-in-dl
+        destination_type: queue
+        routing_key: "#"

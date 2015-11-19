@@ -11,4 +11,11 @@ public class Payload {
     public int size() {
         return data.length;
     }
+
+    @Override
+    public String toString() {
+        return "Payload{" +
+                "size=" + data.length + " bytes"+
+                '}';
+    }
 }

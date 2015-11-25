@@ -1,5 +1,6 @@
 package com.meltwater.rxrabbit.impl;
 
+import com.google.common.collect.Collections2;
 import com.meltwater.rxrabbit.Acknowledger;
 import com.meltwater.rxrabbit.ChannelFactory;
 import com.meltwater.rxrabbit.ConsumeChannel;
@@ -20,6 +21,8 @@ import rx.schedulers.Schedulers;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -45,6 +48,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
     private final static AtomicInteger consumerCount = new AtomicInteger();
 
     private final static Logger log = new Logger(SingleChannelConsumer.class);
+    public static final int UNACKED_WARNING_TIME_MS = 6 * 60 * 1000; //5 minutes
 
     private final ConsumeEventListener metricsReporter;
     private final ChannelFactory channelFactory;
@@ -192,16 +196,17 @@ public class SingleChannelConsumer implements RabbitConsumer {
         private final Subscriber<? super Message> subscriber;
         private final Scheduler.Worker ackWorker;
         private final Scheduler.Worker deliveryWorker;
+        private final Scheduler.Worker unackedMessagesWorker;
 
         private final long closeTimeout;
 
         private final AtomicBoolean stopping = new AtomicBoolean(false);
-        private final AtomicLong outstandingAcks = new AtomicLong(0);
         private final AtomicLong deliveryOffset;
         private final AtomicLong largestSeenDeliverTag;
 
         private final ConsumeChannel channel;
         private String consumerTag;
+        private final Map<Long,Long> unackedMessages = new ConcurrentHashMap<>();
 
         public InternalConsumer(ConsumeChannel channel,
                                 Subscriber<? super Message> subscriber,
@@ -220,7 +225,22 @@ public class SingleChannelConsumer implements RabbitConsumer {
             deliveryWorker.schedule(() -> Thread.currentThread().setName(threadNamePrefix+"-delivery"));
             this.ackWorker = Schedulers.io().createWorker();
             ackWorker.schedule(() -> Thread.currentThread().setName(threadNamePrefix+"-ack"));
+            this.unackedMessagesWorker = Schedulers.io().createWorker();
+            unackedMessagesWorker.schedule(() -> Thread.currentThread().setName(threadNamePrefix+"-unacked"));
             deliveryOffset.set(largestSeenDeliverTag.get());
+            unackedMessagesWorker.schedulePeriodically(this::logUnackedMessages, 1, 1, TimeUnit.MINUTES);
+
+        }
+
+        private void logUnackedMessages() {
+            Collection<Long> oldMessages = Collections2.filter(unackedMessages.values(),
+                    createdAt -> createdAt <= System.currentTimeMillis() - UNACKED_WARNING_TIME_MS);
+
+            if(oldMessages.size() > 0){
+                log.warnWithParams("Long-lived un-acked messages found",
+                        "nrMessages", oldMessages.size(),
+                        "olderThanMs", UNACKED_WARNING_TIME_MS);
+            }
         }
 
         public InternalConsumer(InternalConsumer that, String threadNamePrefix, ConsumeChannel channel, Subscriber<? super Message> subscriber) {
@@ -279,11 +299,11 @@ public class SingleChannelConsumer implements RabbitConsumer {
                             "internalDeliveryTag", internalDeliverTag,
                             "largestSeenDeliverTag", largestSeenDeliverTag.get(),
                             "messageHeaders", headers);
-                    outstandingAcks.incrementAndGet();
+                    unackedMessages.put(internalDeliverTag,System.currentTimeMillis());
                     final Envelope internalEnvelope = new Envelope(internalDeliverTag, envelope.isRedeliver(), envelope.getExchange(), envelope.getRoutingKey());
                     Acknowledger acknowledger = createAcknowledger(channel, internalEnvelope, headers, body);
                     Message message = new Message(acknowledger, internalEnvelope, headers, body);
-                    consumeEventListener.received(message, outstandingAcks.get());
+                    consumeEventListener.received(message, unackedMessages.size());
                     try {
                         subscriber.onNext(message);
                     } catch (Exception e) {
@@ -307,6 +327,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
                                                 final BasicProperties headers,
                                                 final byte[] payload) {
             final long processingStart = System.currentTimeMillis();
+            final long deliveryTag = envelope.getDeliveryTag();
             return new Acknowledger() {
                 @Override
                 public void onDone() {
@@ -316,20 +337,20 @@ public class SingleChannelConsumer implements RabbitConsumer {
                         try {
                             //TODO should we add multi ack here ??
                             final long currentDeliveryOffset = deliveryOffset.get();
-                            if(currentDeliveryOffset >= envelope.getDeliveryTag()){
+                            if(currentDeliveryOffset >= deliveryTag){
                                 consumeEventListener.ignoredAck(message);
                             }
                             else {
-                                long actualDeliverTag = envelope.getDeliveryTag() - currentDeliveryOffset;
+                                long actualDeliverTag = deliveryTag - currentDeliveryOffset;
                                 consumeEventListener.beforeAck(message);
                                 channel.basicAck(actualDeliverTag, false);
                             }
                         } catch (Exception e) {
                             consumeEventListener.afterFailedAck(message, e, channel.isOpen());
                         } finally {
-                            decrementAndReportOutstanding();
+                            removeAndNotifyOutstanding(deliveryTag);
                         }
-                        consumeEventListener.done(message, outstandingAcks.get(), ackStart, processingStart);
+                        consumeEventListener.done(message, unackedMessages.size(), ackStart, processingStart);
                     });
                 }
 
@@ -351,16 +372,16 @@ public class SingleChannelConsumer implements RabbitConsumer {
                         } catch (Exception e) {
                             consumeEventListener.afterFailedNack(message, e, channel.isOpen());
                         } finally {
-                            decrementAndReportOutstanding();
+                            removeAndNotifyOutstanding(deliveryTag);
                         }
-                        consumeEventListener.done(message, outstandingAcks.get(), nackStart, processingStart);
+                        consumeEventListener.done(message, unackedMessages.size(), nackStart, processingStart);
                     });
                 }
 
-                private void decrementAndReportOutstanding() {
-                    synchronized (outstandingAcks) {
-                        outstandingAcks.decrementAndGet();
-                        outstandingAcks.notifyAll();
+                private void removeAndNotifyOutstanding(Long deliveryTag) {
+                    synchronized (unackedMessages) {
+                        unackedMessages.remove(deliveryTag);
+                        unackedMessages.notifyAll();
                     }
                 }
             };
@@ -375,31 +396,31 @@ public class SingleChannelConsumer implements RabbitConsumer {
             log.infoWithParams("Shutting down consumer. Waiting for outstanding acks before closing the channel.",
                     "channel", channel.toString(),
                     "consumerTag", consumerTag,
-                    "unAckedMessages", outstandingAcks.get());
+                    "unAckedMessages", unackedMessages.size());
             try {
                 channel.basicCancel(consumerTag);
             } catch (Exception e) {
                 log.warnWithParams("Unexpected error when canceling consumer", e,
                         "channel", channel.toString(),
                         "consumerTag", consumerTag,
-                        "unAckedMessages", outstandingAcks.get()
+                        "unAckedMessages", unackedMessages.size()
                 );
             }
             long startTime = System.currentTimeMillis();
             final Scheduler.Worker closeProgressWorker = Schedulers.io().createWorker();
             closeProgressWorker.schedulePeriodically(() -> log.infoWithParams("Closing down consumer, waiting for outstanding acks",
-                    "unAckedMessages", outstandingAcks.get(),
+                    "unAckedMessages", unackedMessages.size(),
                     "millisWaited", System.currentTimeMillis() - startTime,
                     "closeTimeout", closeTimeout), 5,5,TimeUnit.SECONDS);
-            synchronized (outstandingAcks) {
+            synchronized (unackedMessages) {
 
-                while (outstandingAcks.get() > 0) {
+                while (unackedMessages.size() > 0) {
                     try {
-                        outstandingAcks.wait(100);
+                        unackedMessages.wait(100);
                     } catch (InterruptedException ignored) {
                         log.warnWithParams("Close interrupted with un-acked messages still pending",
                                 "consumerTag", consumerTag,
-                                "unAckedMessages", outstandingAcks.get());
+                                "unAckedMessages", unackedMessages.size());
                         break;
                     }
                     //TODO maybe log the shutdown progress here??
@@ -409,7 +430,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
                                 "channel", channel.toString(),
                                 "consumerTag", consumerTag,
                                 "millisWaited", timeWaited,
-                                "unAckedMessages", outstandingAcks.get());
+                                "unAckedMessages", unackedMessages.size());
                         break;
                     }
                 }

@@ -55,7 +55,7 @@ public class DefaultConsumerFactory implements ConsumerFactory {
                 channelFactory,
                 queue,
                 settings.getPre_fetch_count(),
-                settings.getConsumer_tag_prefix() + "{" + queue + "}-consumer",
+                settings.getConsumer_tag_prefix() + "-consumer",
                 settings.getRetry_count(),
                 settings.getClose_timeout_millis(),
                 consumerObserveOnScheduler,

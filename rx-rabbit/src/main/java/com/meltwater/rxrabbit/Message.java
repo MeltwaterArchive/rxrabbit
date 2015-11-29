@@ -19,7 +19,7 @@ public class Message {
      * or that the processing of it failed.
      *
      * NOTE:
-     * The consuming code is expected to call {@link Acknowledger#onDone()} or {@link Acknowledger#onFail()} as soon as it can.
+     * The consuming code is expected to call {@link Acknowledger#ack()} or {@link Acknowledger#reject()} as soon as it can.
      * Failure in doing so will in most cases make the message stream pause as rabbitmq will be waiting for acks
      * before delivering more messages.
      *

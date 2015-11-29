@@ -208,6 +208,7 @@ public class SingleChannelPublisher implements RabbitPublisher {
                     break;
                 } catch (Exception ignored) {
                     log.warnWithParams("Failed to create connection. Will try to re-connect again.",
+                            "error", ignored,
                             "attempt", i,
                             "maxAttempts", maxRetries,
                             "secsUntilNextAttempt", Fibonacci.getDelaySec(i+1));

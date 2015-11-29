@@ -310,7 +310,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
                         log.errorWithParams("Unhandled error when sending message to subscriber. This should NEVER happen.", e,
                                 "basicProperties", headers,
                                 "body", new String(body, Charset.forName("utf-8")));
-                        acknowledger.onFail();
+                        acknowledger.reject();
                     }
                 } else {
                     log.traceWithParams("Ignoring message received during shutdown.",
@@ -330,7 +330,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
             final long deliveryTag = envelope.getDeliveryTag();
             return new Acknowledger() {
                 @Override
-                public void onDone() {
+                public void ack() {
                     long ackStart = System.currentTimeMillis();
                     Message message = new Message(this, envelope, headers, payload);
                     ackWorker.schedule(() -> {
@@ -355,7 +355,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
                 }
 
                 @Override
-                public void onFail() {
+                public void reject() {
                     final long nackStart = System.currentTimeMillis();
                     Message message = new Message(this, envelope, headers, payload);
                     ackWorker.schedule(() -> {

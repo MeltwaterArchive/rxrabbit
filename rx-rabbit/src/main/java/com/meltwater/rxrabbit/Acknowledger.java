@@ -10,14 +10,14 @@ public interface Acknowledger {
 	 *
 	 * @see ConsumeChannel#basicAck(long, boolean)
 	 */
-	void onDone(); //TODO change to ack
+	void ack();
 
 	/**
 	 * Call to indicate that the operation failed.
 	 *
 	 * @see ConsumeChannel#basicNack(long, boolean)
 	 */
-	void onFail(); //TODO change to reject
+	void reject();
 
 
 }

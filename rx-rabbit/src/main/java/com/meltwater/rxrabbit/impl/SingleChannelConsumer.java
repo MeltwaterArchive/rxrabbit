@@ -135,7 +135,6 @@ public class SingleChannelConsumer implements RabbitConsumer {
                         startConsuming(subscriber, consumerRef);
                     } catch (Exception e) {
                         log.errorWithParams("Unexpected error when registering the rabbit consumer on the broker.",
-                                "",
                                 "error", e);
                         subscriber.onError(e);
                     }

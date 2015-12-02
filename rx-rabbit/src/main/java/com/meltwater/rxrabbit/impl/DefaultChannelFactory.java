@@ -17,6 +17,7 @@ import com.rabbitmq.client.ConnectionFactory;
 import com.rabbitmq.client.Consumer;
 import com.rabbitmq.client.GetResponse;
 import com.rabbitmq.client.impl.AMQConnection;
+import rx.functions.Func2;
 
 import java.io.IOException;
 import java.text.SimpleDateFormat;
@@ -51,19 +52,40 @@ public class DefaultChannelFactory implements ChannelFactory {
 
     @Override
     public ConsumeChannel createConsumeChannel(final String queue)throws IOException, TimeoutException {
-        //TODO use the queue and locate the correct host to connect to
-        return (ConsumeChannel)createChannel(ChannelType.consume, queue);
+        return (ConsumeChannel)createChannel(
+                ChannelType.consume,
+                (hashCode, innerChannel) -> new ConsumeChannelImpl(innerChannel, queue, hashCode, ChannelType.consume, DefaultChannelFactory.this)
+        );
+    }
+
+    @Override
+    public ConsumeChannel createConsumeChannel(String exchange, String routingkey) throws IOException, TimeoutException {
+        return (ConsumeChannel)createChannel(
+                ChannelType.consume,
+                (hashCode, innerChannel) -> {
+                    try {
+                        return new ConsumeChannelImpl(innerChannel, exchange, routingkey, hashCode, ChannelType.consume, DefaultChannelFactory.this);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+        );
     }
 
     @Override
     public PublishChannel createPublishChannel()throws IOException, TimeoutException {
-        //TODO use the exchange and locate the correct host to connect to
-        return (PublishChannel)createChannel(ChannelType.publish, null);
+        return (PublishChannel)createChannel(
+                ChannelType.publish,
+                (hashCode, innerChannel) -> new PublishChannelImpl(innerChannel, hashCode, ChannelType.publish, DefaultChannelFactory.this)
+        );
     }
 
     @Override
     public AdminChannel createAdminChannel() throws IOException, TimeoutException {
-        return (AdminChannel)createChannel(ChannelType.admin, null);
+        return (AdminChannel)createChannel(
+                ChannelType.admin,
+                (hashCode, innerChannel) -> new AdminChannelImpl(innerChannel, hashCode, ChannelType.admin, DefaultChannelFactory.this)
+        );
     }
 
     public synchronized void closeChannelWitError(ChannelImpl channel) {
@@ -134,18 +156,10 @@ public class DefaultChannelFactory implements ChannelFactory {
         }
     }
 
-    private synchronized ChannelWrapper createChannel(ChannelType type, String queue) throws IOException, TimeoutException {
+    private synchronized ChannelWrapper createChannel(ChannelType type, Func2<Integer, Channel, ChannelImpl> channelFunction) throws IOException, TimeoutException {
         Channel innerChannel = getOrCreateConnection(type).createChannel();
         ConnectionInfo info = conToChannel.get(type);
-
-        final int hashCode = innerChannel.hashCode();
-        ChannelImpl channel = null;
-        switch (type){
-            case consume  : channel = new ConsumeChannelImpl(innerChannel, queue, hashCode, type, this); break;
-            case publish  : channel = new PublishChannelImpl(innerChannel, hashCode, type, this); break;
-            case admin    : channel = new AdminChannelImpl(innerChannel, hashCode, type, this); break;
-        }
-
+        ChannelImpl channel = channelFunction.call(innerChannel.hashCode(), innerChannel);
         info.channels.add(channel);
         log.infoWithParams("Successfully created "+type+" channel.",
                 "channel", channel,
@@ -416,6 +430,13 @@ public class DefaultChannelFactory implements ChannelFactory {
         ConsumeChannelImpl(Channel delegate, String queue, int hashCode, ChannelType channelType, DefaultChannelFactory factory) {
             super(delegate, hashCode, channelType, factory);
             this.queue = queue;
+        }
+
+        ConsumeChannelImpl( Channel delegate, String exchange, String routingKey,int hashCode, ChannelType channelType, DefaultChannelFactory factory) throws IOException {
+            super(delegate, hashCode, channelType, factory);
+            AMQP.Queue.DeclareOk q = delegate.queueDeclare();
+            delegate.queueBind(q.getQueue(), exchange, routingKey);
+            this.queue = q.getQueue();
         }
 
         @Override

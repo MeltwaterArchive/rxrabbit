@@ -1,5 +1,7 @@
 package com.meltwater.rxrabbit;
 
+import com.rabbitmq.client.AMQP;
+import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Consumer;
 
 import java.io.IOException;
@@ -18,7 +20,7 @@ public interface ConsumeChannel extends ChannelWrapper{
 
     /**
      *
-     * @return the queue this channel is able to consume from
+     * @return the queue this channel is consuming from
      */
     String getQueue();
 

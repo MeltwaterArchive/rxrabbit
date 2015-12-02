@@ -6,7 +6,6 @@ import com.meltwater.rxrabbit.ChannelFactory;
 import com.meltwater.rxrabbit.ConsumeChannel;
 import com.meltwater.rxrabbit.ConsumeEventListener;
 import com.meltwater.rxrabbit.Message;
-import com.meltwater.rxrabbit.util.Fibonacci;
 import com.meltwater.rxrabbit.util.Logger;
 import com.rabbitmq.client.AMQP;
 import com.rabbitmq.client.BasicProperties;
@@ -16,7 +15,6 @@ import com.rabbitmq.client.ShutdownSignalException;
 import rx.Observable;
 import rx.Scheduler;
 import rx.Subscriber;
-import rx.functions.Func1;
 import rx.schedulers.Schedulers;
 
 import java.io.IOException;
@@ -30,7 +28,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static com.meltwater.rxrabbit.ConsumerSettings.RETRY_FOREVER;
 import static rx.Observable.create;
 
 /**
@@ -93,40 +90,9 @@ public class SingleChannelConsumer implements RabbitConsumer {
         return Observable.defer(this::createObservable).observeOn(observeOnScheduler);
     }
 
-    private static class RetryHandler implements Func1<Observable<? extends Throwable>, Observable<?>> {
-        private final AtomicInteger connectAttempt = new AtomicInteger();
-        private final int maxReconnectAttempts;
-
-        public RetryHandler(int maxReconnectAttempts) {
-            this.maxReconnectAttempts = maxReconnectAttempts;
-        }
-
-        @Override
-        public Observable<?> call(Observable<? extends Throwable> observable) {
-            return observable.flatMap(throwable -> {
-                int conAttempt = connectAttempt.get();
-                if (maxReconnectAttempts == RETRY_FOREVER || conAttempt < maxReconnectAttempts) {
-                    final int delaySec = Fibonacci.getDelaySec(conAttempt);
-                    connectAttempt.incrementAndGet();
-                    log.infoWithParams("Scheduling attempting to restart consumer",
-                            "attempt", connectAttempt,
-                            "delaySeconds", delaySec);
-                    return Observable.timer(delaySec, TimeUnit.SECONDS);
-                } else {
-                    return Observable.error(throwable);
-                }
-            });
-        }
-
-        public void reset() {
-            connectAttempt.set(0);
-        }
-    }
-
     private Observable<Message> createObservable() {
         final AtomicReference<InternalConsumer> consumerRef = new AtomicReference<>(null);
-        final RetryHandler retryHandler = new RetryHandler(maxReconnectAttempts);
-
+        final ConnectionRetryHandler retryHandler = new ConnectionRetryHandler(maxReconnectAttempts);
         return create(new Observable.OnSubscribe<Message>() {
             @Override
             public void call(Subscriber<? super Message> subscriber) {

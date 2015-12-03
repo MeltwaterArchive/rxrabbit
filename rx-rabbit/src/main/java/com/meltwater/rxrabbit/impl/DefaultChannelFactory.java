@@ -170,6 +170,10 @@ public class DefaultChannelFactory implements ChannelFactory {
         settings.getClient_properties().put("connection_type", connectionType.toString());
         settings.getClient_properties().put("connect_time", sdf.format(startTime)+"Z");
 
+        log.infoWithParams("Creating "+connectionType+" connection to broker ...",
+                "address", addresses.get(0).toString(),
+                "settings", settings.toString());
+
         //TODO use all the values in addresses (connect to them in random? order (or use a configurable/programmable strategy??) )
         ConnectionFactory cf = new ConnectionFactory();
         cf.setPassword(addresses.get(0).password);

@@ -289,7 +289,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
 
         private Acknowledger createAcknowledger(final ConsumeChannel channel,
                                                 final Envelope envelope,
-                                                final BasicProperties headers,
+                                                final AMQP.BasicProperties headers,
                                                 final byte[] payload) {
             final long processingStart = System.currentTimeMillis();
             final long deliveryTag = envelope.getDeliveryTag();

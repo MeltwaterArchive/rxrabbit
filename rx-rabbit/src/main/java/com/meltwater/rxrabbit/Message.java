@@ -1,6 +1,6 @@
 package com.meltwater.rxrabbit;
 
-import com.rabbitmq.client.BasicProperties;
+import com.rabbitmq.client.AMQP;
 import com.rabbitmq.client.Envelope;
 
 import java.util.Arrays;
@@ -30,7 +30,7 @@ public class Message {
     /**
      * The message properties. For example messageId, content type, and custom headers.
      */
-    public final BasicProperties basicProperties;
+    public final AMQP.BasicProperties basicProperties;
 
     /**
      * The message envelope metadata such as the deliveryTag and the exchange it came from and the routing key
@@ -42,7 +42,7 @@ public class Message {
      */
     public final byte[] payload;
 
-    public Message(Acknowledger acknowledger, Envelope envelope, BasicProperties basicProperties, byte[] payload) {
+    public Message(Acknowledger acknowledger, Envelope envelope, AMQP.BasicProperties basicProperties, byte[] payload) {
         this.acknowledger = acknowledger;
         this.envelope = envelope;
         this.basicProperties = basicProperties;

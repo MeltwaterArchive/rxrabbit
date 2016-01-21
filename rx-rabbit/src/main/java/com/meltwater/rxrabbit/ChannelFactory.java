@@ -16,7 +16,7 @@ public interface ChannelFactory {
      * @return a consume channel connected to an already existing queue.
      *
      */
-    ConsumeChannel createConsumeChannel(String queue) throws IOException, TimeoutException;
+    ConsumeChannel createConsumeChannel(String queue) throws IOException;
 
     /**
      * Creates a consume channel connected to a server-named exclusive, autodelete, non-durable queue bound to the
@@ -31,19 +31,19 @@ public interface ChannelFactory {
      * @return a consume channel connected to an ad hoc created temporary queue.
      *
      */
-    ConsumeChannel createConsumeChannel(String exchange, String routingKey) throws IOException, TimeoutException;
+    ConsumeChannel createConsumeChannel(String exchange, String routingKey) throws IOException;
 
     /**
      *
      * @return a publish channel that can be used to publish messages to existing exchanges
      *
      */
-    PublishChannel createPublishChannel() throws IOException, TimeoutException;
+    PublishChannel createPublishChannel() throws IOException;
 
     /**
      *
      * @return an admin channel that can be used to declare and remove queues, exchanges and bindings
      */
-    AdminChannel createAdminChannel() throws IOException, TimeoutException;
+    AdminChannel createAdminChannel() throws IOException;
 
 }

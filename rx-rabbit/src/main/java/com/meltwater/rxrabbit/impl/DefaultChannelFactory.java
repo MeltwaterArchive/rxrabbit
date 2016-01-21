@@ -51,7 +51,7 @@ public class DefaultChannelFactory implements ChannelFactory {
     }
 
     @Override
-    public ConsumeChannel createConsumeChannel(final String queue)throws IOException, TimeoutException {
+    public ConsumeChannel createConsumeChannel(final String queue)throws IOException {
         return (ConsumeChannel)createChannel(
                 ChannelType.consume,
                 (hashCode, innerChannel) -> new ConsumeChannelImpl(innerChannel, queue, hashCode, ChannelType.consume, DefaultChannelFactory.this)
@@ -59,7 +59,7 @@ public class DefaultChannelFactory implements ChannelFactory {
     }
 
     @Override
-    public ConsumeChannel createConsumeChannel(String exchange, String routingkey) throws IOException, TimeoutException {
+    public ConsumeChannel createConsumeChannel(String exchange, String routingkey) throws IOException {
         return (ConsumeChannel)createChannel(
                 ChannelType.consume,
                 (hashCode, innerChannel) -> {
@@ -73,7 +73,7 @@ public class DefaultChannelFactory implements ChannelFactory {
     }
 
     @Override
-    public PublishChannel createPublishChannel()throws IOException, TimeoutException {
+    public PublishChannel createPublishChannel()throws IOException {
         return (PublishChannel)createChannel(
                 ChannelType.publish,
                 (hashCode, innerChannel) -> new PublishChannelImpl(innerChannel, hashCode, ChannelType.publish, DefaultChannelFactory.this)
@@ -81,7 +81,7 @@ public class DefaultChannelFactory implements ChannelFactory {
     }
 
     @Override
-    public AdminChannel createAdminChannel() throws IOException, TimeoutException {
+    public AdminChannel createAdminChannel() throws IOException {
         return (AdminChannel)createChannel(
                 ChannelType.admin,
                 (hashCode, innerChannel) -> new AdminChannelImpl(innerChannel, hashCode, ChannelType.admin, DefaultChannelFactory.this)
@@ -156,7 +156,7 @@ public class DefaultChannelFactory implements ChannelFactory {
         }
     }
 
-    private synchronized ChannelWrapper createChannel(ChannelType type, Func2<Integer, Channel, ChannelImpl> channelFunction) throws IOException, TimeoutException {
+    private synchronized ChannelWrapper createChannel(ChannelType type, Func2<Integer, Channel, ChannelImpl> channelFunction) throws IOException {
         Channel innerChannel = getOrCreateConnection(type).createChannel();
         ConnectionInfo info = conToChannel.get(type);
         ChannelImpl channel = channelFunction.call(innerChannel.hashCode(), innerChannel);
@@ -168,7 +168,7 @@ public class DefaultChannelFactory implements ChannelFactory {
     }
 
 
-    private synchronized Connection getOrCreateConnection(ChannelType connectionType) throws IOException, TimeoutException {
+    private synchronized Connection getOrCreateConnection(ChannelType connectionType) throws IOException {
         if (conToChannel.containsKey(connectionType)) {
             if (conToChannel.get(connectionType).connection.isOpen()) {
                 return conToChannel.get(connectionType).connection;
@@ -206,7 +206,13 @@ public class DefaultChannelFactory implements ChannelFactory {
         cf.setAutomaticRecoveryEnabled(false);//Hard coded ..
         cf.setTopologyRecoveryEnabled(false);//Hard coded ..
 
-        Connection connection = cf.newConnection();
+        Connection connection;
+        try {
+            connection = cf.newConnection();
+        } catch (Exception e) {
+            throw new ConnectionFailureException(cf, e);
+        }
+
         conToChannel.put(connectionType,
                 new ConnectionInfo(
                         connection,
@@ -474,5 +480,17 @@ public class DefaultChannelFactory implements ChannelFactory {
         publish,
         consume,
         admin
+    }
+
+    private class ConnectionFailureException extends IOException {
+        public ConnectionFailureException(ConnectionFactory cf, Exception e) {
+            super(
+                String.format(
+                    "Error while connecting to broker. host='%s' port=%d virtualHost='%s' username='%s'",
+                    cf.getHost(), cf.getPort(), cf.getVirtualHost(), cf.getUsername()
+                ),
+                e
+            );
+        }
     }
 }

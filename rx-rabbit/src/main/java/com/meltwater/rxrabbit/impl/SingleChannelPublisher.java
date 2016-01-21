@@ -194,11 +194,13 @@ public class SingleChannelPublisher implements RabbitPublisher {
         }
     }
 
-    private synchronized PublishChannel getChannel() throws IOException, TimeoutException {
+    private synchronized PublishChannel getChannel() throws IOException {
         if (channel==null){
-            for (int i = 0; i < maxRetries || maxRetries==RETRY_FOREVER; i++) {
+            for (int attempt = 1; attempt <= maxRetries || maxRetries==RETRY_FOREVER; attempt++) {
                 try {
-                    Thread.sleep(Fibonacci.getDelayMillis(i));
+                    try {
+                        Thread.sleep(Fibonacci.getDelayMillis(attempt - 1));
+                    } catch (InterruptedException ignored) {}
                     log.infoWithParams("Creating publish channel.");
                     this.channel = channelFactory.createPublishChannel();
                     if (publisherConfirms){
@@ -206,17 +208,18 @@ public class SingleChannelPublisher implements RabbitPublisher {
                         channel.addConfirmListener(new InternalConfirmListener(ackWorker,this));
                     }
                     break;
-                } catch (Exception ignored) {
-                    log.warnWithParams("Failed to create connection. Will try to re-connect again.",
-                            "error", ignored,
-                            "attempt", i,
+                } catch (Exception e) {
+                    if (attempt < maxRetries || maxRetries == RETRY_FOREVER) {
+                        log.warnWithParams("Failed to create connection. Will try to re-connect again.",
+                            "error", e,
+                            "attempt", attempt,
                             "maxAttempts", maxRetries,
-                            "secsUntilNextAttempt", Fibonacci.getDelaySec(i+1));
+                            "secsUntilNextAttempt", Fibonacci.getDelaySec(attempt));
+                    } else {
+                        throw e;
+                    }
                 }
             }
-        }
-        if (channel==null){
-            throw new TimeoutException("Failed to create channel after "+maxRetries+" attempts.");
         }
         return channel;
     }

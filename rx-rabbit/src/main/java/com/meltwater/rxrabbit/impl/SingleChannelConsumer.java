@@ -100,8 +100,14 @@ public class SingleChannelConsumer implements RabbitConsumer {
                     try {
                         startConsuming(subscriber, consumerRef);
                     } catch (Exception e) {
+                        Throwable rootCause;
+                        if (e instanceof IOException && e.getCause() != null && e.getCause() instanceof ShutdownSignalException) {
+                            rootCause = e.getCause();
+                        } else {
+                            rootCause = e;
+                        }
                         log.errorWithParams("Unexpected error when registering the rabbit consumer on the broker.",
-                                "error", e);
+                            "error", rootCause);
                         subscriber.onError(e);
                     }
                 }
@@ -132,7 +138,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
     }
 
     private synchronized void startConsuming(Subscriber<? super Message> subscriber,
-                                             AtomicReference<InternalConsumer> consumerRef) throws IOException, TimeoutException {
+                                             AtomicReference<InternalConsumer> consumerRef) throws IOException {
         ConsumeChannel channel = channelFactory.createConsumeChannel(queue);
         channel.basicQos(preFetchCount);
         int consumerCount = SingleChannelConsumer.consumerCount.incrementAndGet();
@@ -272,7 +278,8 @@ public class SingleChannelConsumer implements RabbitConsumer {
                     try {
                         subscriber.onNext(message);
                     } catch (Exception e) {
-                        log.errorWithParams("Unhandled error when sending message to subscriber. This should NEVER happen.", e,
+                        log.errorWithParams("Unhandled error when sending message to subscriber. This should NEVER happen.",
+                                e,
                                 "basicProperties", headers,
                                 "body", new String(body, Charset.forName("utf-8")));
                         acknowledger.reject();
@@ -365,7 +372,8 @@ public class SingleChannelConsumer implements RabbitConsumer {
             try {
                 channel.basicCancel(consumerTag);
             } catch (Exception e) {
-                log.warnWithParams("Unexpected error when canceling consumer", e,
+                log.warnWithParams("Unexpected error when canceling consumer",
+                        e,
                         "channel", channel.toString(),
                         "consumerTag", consumerTag,
                         "unAckedMessages", unackedMessages.size()

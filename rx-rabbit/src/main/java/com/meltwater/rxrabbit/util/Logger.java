@@ -6,6 +6,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import static com.meltwater.rxrabbit.util.LogFiltering.filterStackTrace;
+
 /**
  * Logger class which provides a standardized way of outputting variables and their values.
  */
@@ -57,10 +59,10 @@ public class Logger {
             return;
         }
         try {
-            logger.trace(buildLogMessage(message, arguments), t);
+            logger.trace(buildLogMessage(message, arguments), filterStackTrace(t));
         } catch (IllegalArgumentException e) {
             logMessageAssemblyFailure(message, arguments);
-            logger.trace(message, t);
+            logger.trace(message, filterStackTrace(t));
         }
     }
 
@@ -81,10 +83,10 @@ public class Logger {
             return;
         }
         try {
-            logger.debug(buildLogMessage(message, arguments), t);
+            logger.debug(buildLogMessage(message, arguments), filterStackTrace(t));
         } catch (IllegalArgumentException e) {
             logMessageAssemblyFailure(message, arguments);
-            logger.debug(message, t);
+            logger.debug(message, filterStackTrace(t));
         }
     }
 
@@ -104,10 +106,10 @@ public class Logger {
             return;
         }
         try {
-            logger.info(buildLogMessage(message, arguments), t);
+            logger.info(buildLogMessage(message, arguments), filterStackTrace(t));
         } catch (IllegalArgumentException e) {
             logMessageAssemblyFailure(message, arguments);
-            logger.info(message, t);
+            logger.info(message, filterStackTrace(t));
         }
     }
 
@@ -127,10 +129,10 @@ public class Logger {
             return;
         }
         try {
-            logger.warn(buildLogMessage(message, arguments), t);
+            logger.warn(buildLogMessage(message, arguments), filterStackTrace(t));
         } catch (IllegalArgumentException e) {
             logMessageAssemblyFailure(message, arguments);
-            logger.warn(message, t);
+            logger.warn(message, filterStackTrace(t));
         }
     }
 
@@ -150,10 +152,10 @@ public class Logger {
             return;
         }
         try {
-            logger.error(buildLogMessage(message, arguments), t);
+            logger.error(buildLogMessage(message, arguments), filterStackTrace(t));
         } catch (IllegalArgumentException e) {
             logMessageAssemblyFailure(message, arguments);
-            logger.error(message, t);
+            logger.error(message, filterStackTrace(t));
         }
     }
 

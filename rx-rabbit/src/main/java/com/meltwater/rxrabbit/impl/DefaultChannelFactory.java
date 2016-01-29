@@ -46,7 +46,7 @@ public class DefaultChannelFactory implements ChannelFactory {
         this.settings = settings;
     }
 
-    public List<ConnectionInfo> getOpenConnections(){
+    public synchronized List<ConnectionInfo> getOpenConnections(){
         return new ArrayList<>(Collections2.filter(conToChannel.values(), c -> c.connection.isOpen()));
     }
 

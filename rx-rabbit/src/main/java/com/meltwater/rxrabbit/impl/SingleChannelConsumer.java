@@ -410,6 +410,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
             }
             log.infoWithParams("Closing the channel and stopping workers.");
             closeProgressWorker.unsubscribe();
+            unackedMessagesWorker.unsubscribe();
             deliveryWorker.unsubscribe();
             ackWorker.unsubscribe();
             channel.close();

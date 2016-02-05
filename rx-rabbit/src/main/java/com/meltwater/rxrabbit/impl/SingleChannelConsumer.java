@@ -219,7 +219,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
         }
 
         @Override
-        public void handleConsumeOk(String consumerTag) {
+        public synchronized void handleConsumeOk(String consumerTag) {
             Thread.currentThread().setName("rabbit-internal-thread");
             this.consumerTag = consumerTag;
             log.infoWithParams("Consumer registered and ready to receive messages.",
@@ -229,7 +229,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
         }
 
         @Override
-        public void handleCancelOk(String consumerTag) {
+        public synchronized void handleCancelOk(String consumerTag) {
             log.infoWithParams("Consumer successfully stopped. It will not receive any more messages.",
                     "channel", channel.toString(),
                     "queue", channel.getQueue(),
@@ -237,7 +237,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
         }
 
         @Override
-        public void handleCancel(String consumerTag) throws IOException {
+        public synchronized void handleCancel(String consumerTag) throws IOException {
             log.warnWithParams("Consumer stopped unexpectedly. It will not receive any more messages.",
                     "channel", channel.toString(),
                     "queue", channel.getQueue(),
@@ -245,7 +245,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
         }
 
         @Override
-        public void handleShutdownSignal(String consumerTag, ShutdownSignalException sig) {
+        public synchronized void handleShutdownSignal(String consumerTag, ShutdownSignalException sig) {
             log.errorWithParams("The rabbit connection was unexpectedly disconnected.", sig,
                     "channel", channel.toString(),
                     "queue", channel.getQueue(),
@@ -257,7 +257,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
         public void handleRecoverOk(String consumerTag) {}
 
         @Override
-        public void handleDelivery(String consumerTag, Envelope envelope, AMQP.BasicProperties headers, byte[] body) throws IOException {
+        public synchronized void handleDelivery(String consumerTag, Envelope envelope, AMQP.BasicProperties headers, byte[] body) throws IOException {
             deliveryWorker.schedule(() -> {
                 if (!subscriber.isUnsubscribed() && !stopping.get()) {
                     long internalDeliverTag = envelope.getDeliveryTag() + deliveryOffset.get();
@@ -300,9 +300,16 @@ public class SingleChannelConsumer implements RabbitConsumer {
                                                 final byte[] payload) {
             final long processingStart = System.currentTimeMillis();
             final long deliveryTag = envelope.getDeliveryTag();
+            final AtomicBoolean hasAcked = new AtomicBoolean(false); //This is here to prevent double acking which causes
             return new Acknowledger() {
                 @Override
                 public void ack() {
+                    if(hasAcked.getAndSet(true)){
+                        log.infoWithParams("Attempt to ack an already acked message will be ignored.",
+                                "deliveryTag", deliveryTag,
+                                "basicProperties", headers.toString());
+                        return;
+                    }
                     long ackStart = System.currentTimeMillis();
                     Message message = new Message(this, envelope, headers, payload);
                     ackWorker.schedule(() -> {
@@ -328,6 +335,12 @@ public class SingleChannelConsumer implements RabbitConsumer {
 
                 @Override
                 public void reject() {
+                    if(hasAcked.getAndSet(true)){
+                        log.infoWithParams("Attempt to reject an already acked message will be ignored.",
+                                "deliveryTag", deliveryTag,
+                                "basicProperties", headers.toString());
+                        return;
+                    }
                     final long nackStart = System.currentTimeMillis();
                     Message message = new Message(this, envelope, headers, payload);
                     ackWorker.schedule(() -> {
@@ -359,7 +372,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
             };
         }
 
-        void close() {
+        synchronized void close() {
             if (stopping.get()){
                 log.infoWithParams("Already stopped, doing nothing.");
                 return;

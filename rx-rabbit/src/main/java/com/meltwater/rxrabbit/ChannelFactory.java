@@ -1,7 +1,6 @@
 package com.meltwater.rxrabbit;
 
 import java.io.IOException;
-import java.util.concurrent.TimeoutException;
 
 /**
  * A factory for creating channels

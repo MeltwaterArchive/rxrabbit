@@ -1,7 +1,5 @@
 package com.meltwater.rxrabbit;
 
-import com.rabbitmq.client.AMQP;
-import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Consumer;
 
 import java.io.IOException;

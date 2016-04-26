@@ -1,11 +1,14 @@
 package com.meltwater.rxrabbit;
 
 import com.google.common.base.Joiner;
+import com.google.common.collect.Maps;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.SortedMap;
 
 /**
  * This class contains rabbitmq connection with things. Some withtings are part of the official AMQP URI spec v 0-9-1,
@@ -27,7 +30,16 @@ public class ConnectionSettings {
     private int handshake_timeout_millis    = DEFAULT_HANDSHAKE_MILLIS;
     private int frame_max                   = DEFAULT_FRAME_MAX; //0 = Infinite
 
-    private Map<String,String> client_properties = new HashMap<>();
+    private final Map<String,Object> defaultClientCapabilities = new HashMap<String, Object>() {{
+        //Lets us receive cancellation events, such as the queue being deleted or that the node on which the queue is located failing
+        put("consumer_cancel_notify", true);
+        put("exchange_exchange_bindings", true);
+        put("basic.nack", true);
+        put("publisher_confirms",true);
+    }};
+
+
+    private Map<String,Object> client_properties = new HashMap<String,Object>();
 
     /*
     //These params below are here for reference, but they are not yet implemented
@@ -62,9 +74,12 @@ public class ConnectionSettings {
         return frame_max;
     }
 
-    public Map<String, String> getClient_properties() {
-        return client_properties;
+    public Map<String, Object> getClient_properties() {
+        Map<String, Object> propsWithCapabilities = new HashMap<>(client_properties);
+        propsWithCapabilities.put("capabilities", defaultClientCapabilities);
+        return propsWithCapabilities;
     }
+
 
     public ConnectionSettings withHeartbeatSecs(int heartbeat) {
         assert heartbeat>0;
@@ -97,7 +112,7 @@ public class ConnectionSettings {
 
     public ConnectionSettings withClientProperties(Map<String, String> client_properties) {
         assert client_properties!=null;
-        this.client_properties = client_properties;
+        this.client_properties = new HashMap<>(client_properties);
         return this;
     }
 
@@ -113,7 +128,7 @@ public class ConnectionSettings {
         if (shutdown_timeout_millis != that.shutdown_timeout_millis) return false;
         if (handshake_timeout_millis != that.handshake_timeout_millis) return false;
         if (frame_max != that.frame_max) return false;
-        return client_properties.toString().equals(that.client_properties.toString());
+        return mapToString(client_properties).equals(mapToString(that.client_properties));
     }
 
     @Override
@@ -139,15 +154,30 @@ public class ConnectionSettings {
                 '}';
     }
 
-    private String mapToString(Map<String, String> map) {
+    private String mapToString(Map<String, Object> map) {
+        SortedMap<String, Object> sortedMap = sortMap(map);
         StringBuilder builder = new StringBuilder();
         builder.append("{");
         List<String> parts = new ArrayList<>();
-        for (Map.Entry<String,String> e : map.entrySet()){
+        for (Map.Entry<String,Object> e : sortedMap.entrySet()){
              parts.add(e.getKey()+":'"+e.getValue()+"'");
         }
         Joiner.on(", ").appendTo(builder, parts);
         return builder.append("}").toString();
+    }
+
+    private SortedMap<String, Object> sortMap(Map<String, Object> map) {
+        SortedMap<String, Object> res = Maps.newTreeMap(new Comparator<String>()
+        {
+            public int compare(String o1, String o2)
+            {
+                return o1.compareTo(o2);
+            }
+        });
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            res.put(entry.getKey(),entry.getValue());
+        }
+        return res;
     }
 
 }

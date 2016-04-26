@@ -3,6 +3,8 @@ package com.meltwater.rxrabbit;
 import com.meltwater.rxrabbit.impl.DefaultChannelFactory;
 import com.meltwater.rxrabbit.impl.RoundRobinPublisher;
 import com.meltwater.rxrabbit.impl.SingleChannelPublisher;
+import com.meltwater.rxrabbit.util.BackoffAlgorithm;
+import com.meltwater.rxrabbit.util.FibonacciBackoffAlgorithm;
 import com.meltwater.rxrabbit.util.Logger;
 import rx.Scheduler;
 import rx.schedulers.Schedulers;
@@ -61,7 +63,8 @@ public class DefaultPublisherFactory implements PublisherFactory{
                     publishEventListener,
                     settings.getPublish_timeout_secs(),
                     settings.getClose_timeout_millis(),
-                    1));
+                    1,
+                    settings.getBackoff_algorithm()));
         }
         return new RoundRobinPublisher(publishers);
     }

@@ -1,6 +1,6 @@
 package com.meltwater.rxrabbit.impl;
 
-import com.meltwater.rxrabbit.util.Fibonacci;
+import com.meltwater.rxrabbit.util.BackoffAlgorithm;
 import com.meltwater.rxrabbit.util.Logger;
 import rx.Observable;
 import rx.functions.Func1;
@@ -14,9 +14,11 @@ public class ConnectionRetryHandler implements Func1<Observable<? extends Throwa
 
     private static final Logger log = new Logger(ConnectionRetryHandler.class);
     private final AtomicInteger connectAttempt = new AtomicInteger();
+    private final BackoffAlgorithm backoffAlgorithm;
     private final int maxReconnectAttempts;
 
-    public ConnectionRetryHandler(int maxReconnectAttempts) {
+    public ConnectionRetryHandler(BackoffAlgorithm backoffAlgorithm, int maxReconnectAttempts) {
+        this.backoffAlgorithm = backoffAlgorithm;
         this.maxReconnectAttempts = maxReconnectAttempts;
     }
 
@@ -25,12 +27,12 @@ public class ConnectionRetryHandler implements Func1<Observable<? extends Throwa
         return observable.flatMap(throwable -> {
             int conAttempt = connectAttempt.get();
             if (maxReconnectAttempts == RETRY_FOREVER || conAttempt < maxReconnectAttempts) {
-                final int delaySec = Fibonacci.getDelaySec(conAttempt);
+                final int delayMs = backoffAlgorithm.getDelayMs(conAttempt);
                 connectAttempt.incrementAndGet();
                 log.infoWithParams("Scheduling attempting to restart consumer",
                         "attempt", connectAttempt,
-                        "delaySeconds", delaySec);
-                return Observable.timer(delaySec, TimeUnit.SECONDS);
+                        "delayMs", delayMs);
+                return Observable.timer(delayMs, TimeUnit.MILLISECONDS);
             } else {
                 return Observable.error(throwable);
             }

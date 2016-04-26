@@ -1,5 +1,8 @@
 package com.meltwater.rxrabbit;
 
+import com.meltwater.rxrabbit.util.BackoffAlgorithm;
+import com.meltwater.rxrabbit.util.FibonacciBackoffAlgorithm;
+
 /**
  * This class contains rabbitmq consumer settings used by the {@link DefaultConsumerFactory}
  */
@@ -16,6 +19,7 @@ public class ConsumerSettings {
     private int retry_count             = DEFAULT_RETRY_COUNT; //0 or lower means forever
     private long close_timeout_millis   = DEFAULT_CLOSE_TIMEOUT_MILLIS; //0 means forever
     private String consumer_tag_prefix  = "";
+    private BackoffAlgorithm backoff_algorithm = new FibonacciBackoffAlgorithm();
 
     public int getNum_channels() {
         return num_channels;
@@ -35,6 +39,10 @@ public class ConsumerSettings {
 
     public long getClose_timeout_millis() {
         return close_timeout_millis;
+    }
+
+    public BackoffAlgorithm getBackoff_algorithm() {
+        return backoff_algorithm;
     }
 
     public ConsumerSettings withNumChannels(int num_channels) {
@@ -63,6 +71,11 @@ public class ConsumerSettings {
     public ConsumerSettings withCloseTimeoutMillis(long close_timeout_millis) {
         assert close_timeout_millis>=0;
         this.close_timeout_millis = close_timeout_millis;
+        return this;
+    }
+
+    public ConsumerSettings withBackoffAlgorithm(BackoffAlgorithm backoffAlgorithm) {
+        this.backoff_algorithm = backoffAlgorithm;
         return this;
     }
 
@@ -99,4 +112,6 @@ public class ConsumerSettings {
         result = 31 * result + (consumer_tag_prefix != null ? consumer_tag_prefix.hashCode() : 0);
         return result;
     }
+
+
 }

@@ -6,9 +6,9 @@ import com.meltwater.rxrabbit.ChannelFactory;
 import com.meltwater.rxrabbit.ConsumeChannel;
 import com.meltwater.rxrabbit.ConsumeEventListener;
 import com.meltwater.rxrabbit.Message;
+import com.meltwater.rxrabbit.util.BackoffAlgorithm;
 import com.meltwater.rxrabbit.util.Logger;
 import com.rabbitmq.client.AMQP;
-import com.rabbitmq.client.BasicProperties;
 import com.rabbitmq.client.Consumer;
 import com.rabbitmq.client.Envelope;
 import com.rabbitmq.client.ShutdownSignalException;
@@ -22,7 +22,6 @@ import java.nio.charset.Charset;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -55,10 +54,10 @@ public class SingleChannelConsumer implements RabbitConsumer {
     private final String tagPrefix;
     private final String queue;
     private final int preFetchCount;
+    private final BackoffAlgorithm backoffAlgorithm;
 
     /**
-     *
-     * @param channelFactory used to create new channels when needed
+     *  @param channelFactory used to create new channels when needed
      * @param queue the queue to consume from
      * @param preFetchCount the rabbit preFetchCount
      * @param tagPrefix a prefix for the consumer tag, an ever increasing integer will be appended at the end
@@ -66,6 +65,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
      * @param closeTimeout the max time to wait before aborting/crashing close procedures
      * @param observeOnScheduler the scheduler that the onNext(Message) will be called on
      * @param consumeEventListener event listener that will be notified about message receive, failures and ack/nack events
+     * @param backoffAlgorithm controls the backoff timeout between connection attempts
      */
     public SingleChannelConsumer(ChannelFactory channelFactory,
                                  String queue,
@@ -74,7 +74,8 @@ public class SingleChannelConsumer implements RabbitConsumer {
                                  int maxReconnectAttempts,
                                  long closeTimeout,
                                  Scheduler observeOnScheduler,
-                                 ConsumeEventListener consumeEventListener) {
+                                 ConsumeEventListener consumeEventListener,
+                                 BackoffAlgorithm backoffAlgorithm) {
         this.queue = queue;
         this.channelFactory = channelFactory;
         this.preFetchCount = preFetchCount;
@@ -83,6 +84,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
         this.tagPrefix = tagPrefix;
         this.maxReconnectAttempts = maxReconnectAttempts;
         this.metricsReporter = consumeEventListener;
+        this.backoffAlgorithm = backoffAlgorithm;
     }
 
     @Override
@@ -92,7 +94,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
 
     private Observable<Message> createObservable() {
         final AtomicReference<InternalConsumer> consumerRef = new AtomicReference<>(null);
-        final ConnectionRetryHandler retryHandler = new ConnectionRetryHandler(maxReconnectAttempts);
+        final ConnectionRetryHandler retryHandler = new ConnectionRetryHandler(backoffAlgorithm, maxReconnectAttempts);
         return create(new Observable.OnSubscribe<Message>() {
             @Override
             public void call(Subscriber<? super Message> subscriber) {
@@ -236,12 +238,14 @@ public class SingleChannelConsumer implements RabbitConsumer {
                     "consumerTag", consumerTag);
         }
 
+
         @Override
         public synchronized void handleCancel(String consumerTag) throws IOException {
-            log.warnWithParams("Consumer stopped unexpectedly. It will not receive any more messages.",
+            log.warnWithParams("Broker sent cancel message to consumer. Restarting connection.",
                     "channel", channel.toString(),
                     "queue", channel.getQueue(),
                     "consumerTag", consumerTag);
+            subscriber.onError(new RuntimeException("Broker sent cancel message to consumer"));
         }
 
         @Override

@@ -12,7 +12,7 @@ import com.meltwater.rxrabbit.PublishEvent;
 import com.meltwater.rxrabbit.PublishEventListener;
 import com.meltwater.rxrabbit.RabbitPublisher;
 import com.meltwater.rxrabbit.RoutingKey;
-import com.meltwater.rxrabbit.util.Fibonacci;
+import com.meltwater.rxrabbit.util.BackoffAlgorithm;
 import com.meltwater.rxrabbit.util.Logger;
 import com.rabbitmq.client.AMQP;
 import com.rabbitmq.client.ConfirmListener;
@@ -59,6 +59,8 @@ public class SingleChannelPublisher implements RabbitPublisher {
     private PublishChannel channel = null;
     private AtomicBoolean closed = new AtomicBoolean(false);
 
+    private final BackoffAlgorithm backoffAlgorithm;
+
     public SingleChannelPublisher(ChannelFactory channelFactory,
                                   boolean publisherConfirms,
                                   int maxRetries,
@@ -66,13 +68,14 @@ public class SingleChannelPublisher implements RabbitPublisher {
                                   PublishEventListener metricsReporter,
                                   long confirmsTimeoutSec,
                                   long closeTimeoutMillis,
-                                  long cacheCleanupTriggerSecs) {
+                                  long cacheCleanupTriggerSecs, BackoffAlgorithm backoffAlgorithm) {
         this.channelFactory = channelFactory;
         this.publisherConfirms = publisherConfirms;
         this.maxRetries = maxRetries;
         this.observeOnScheduler = observeOnScheduler;
         this.closeTimeoutMillis = closeTimeoutMillis;
         this.metricsReporter = metricsReporter;
+        this.backoffAlgorithm = backoffAlgorithm;
 
         this.publishWorker = Schedulers.io().createWorker();
         final long instanceNr = publisherInstanceNr.incrementAndGet();
@@ -140,11 +143,11 @@ public class SingleChannelPublisher implements RabbitPublisher {
                                         AMQP.BasicProperties props,
                                         Payload payload,
                                         int attempt,
-                                        int delaySec,
+                                        int delayMs,
                                         SingleSubscriber<? super Void> subscriber) {
         if (closed.get()) subscriber.onError(new IllegalStateException("The publisher is closed and will not accept any more messages."));
         long schedulingStart = System.currentTimeMillis();
-        return publishWorker.schedule(() -> basicPublish(exchange, routingKey, props, payload, attempt, subscriber, schedulingStart), delaySec, TimeUnit.SECONDS);
+        return publishWorker.schedule(() -> basicPublish(exchange, routingKey, props, payload, attempt, subscriber, schedulingStart), delayMs, TimeUnit.MILLISECONDS);
     }
 
     private synchronized void basicPublish(Exchange exchange, RoutingKey routingKey, AMQP.BasicProperties props, Payload payload, int attempt, SingleSubscriber<? super Void> subscriber, long schedulingStart) {
@@ -154,6 +157,7 @@ public class SingleChannelPublisher implements RabbitPublisher {
                 routingKey,
                 props,
                 payload,
+                backoffAlgorithm,
                 schedulingStart,
                 publishStart,
                 attempt);
@@ -199,7 +203,7 @@ public class SingleChannelPublisher implements RabbitPublisher {
             for (int attempt = 1; attempt <= maxRetries || maxRetries==RETRY_FOREVER; attempt++) {
                 try {
                     try {
-                        Thread.sleep(Fibonacci.getDelayMillis(attempt - 1));
+                        Thread.sleep(backoffAlgorithm.getDelayMs(attempt - 1));
                     } catch (InterruptedException ignored) {}
                     log.infoWithParams("Creating publish channel.");
                     this.channel = channelFactory.createPublishChannel();
@@ -214,7 +218,7 @@ public class SingleChannelPublisher implements RabbitPublisher {
                             "error", e,
                             "attempt", attempt,
                             "maxAttempts", maxRetries,
-                            "secsUntilNextAttempt", Fibonacci.getDelaySec(attempt));
+                            "msUntilNextAttempt", backoffAlgorithm.getDelayMs(attempt));
                     } else {
                         throw e;
                     }
@@ -287,8 +291,8 @@ public class SingleChannelPublisher implements RabbitPublisher {
         metricsReporter.afterFinalFail(getEvent(message), e);
     }
 
-    private void afterIntermediateFail(UnconfirmedMessage message, Exception e, int delaySec) {
-        metricsReporter.afterIntermediateFail(getEvent(message), e, delaySec);
+    private void afterIntermediateFail(UnconfirmedMessage message, Exception e, int delayMs) {
+        metricsReporter.afterIntermediateFail(getEvent(message), e, delayMs);
     }
 
     private void afterAck(UnconfirmedMessage message) {
@@ -360,6 +364,7 @@ public class SingleChannelPublisher implements RabbitPublisher {
         final Exchange exchange;
         final AMQP.BasicProperties props;
         final SingleSubscriber<? super Void> subscriber;
+        final BackoffAlgorithm backoffAlgorithm;
         final long createdAtTimestamp;
         final long publishedAtTimestamp;
         final int attempt;
@@ -373,6 +378,7 @@ public class SingleChannelPublisher implements RabbitPublisher {
                            RoutingKey routingKey,
                            AMQP.BasicProperties props,
                            Payload payload,
+                           BackoffAlgorithm backoffAlgorithm,
                            long createdAtTimestamp,
                            long publishedAtTimestamp,
                            int attempt) {
@@ -382,6 +388,7 @@ public class SingleChannelPublisher implements RabbitPublisher {
             this.subscriber = subscriber;
             this.routingKey = routingKey;
             this.props = props;
+            this.backoffAlgorithm = backoffAlgorithm;
             this.createdAtTimestamp = createdAtTimestamp;
             this.publishedAtTimestamp = publishedAtTimestamp;
             this.attempt = attempt;
@@ -403,9 +410,9 @@ public class SingleChannelPublisher implements RabbitPublisher {
         public void nack(Exception e) {
             double maxRetries = publisher.getMaxRetries();
             if (attempt < maxRetries || maxRetries == RETRY_FOREVER) {
-                int delaySec = Fibonacci.getDelaySec(attempt);
-                publisher.afterIntermediateFail(this, e, delaySec);
-                publisher.schedulePublish(exchange, routingKey, props, payload, attempt + 1, delaySec, subscriber);
+                int delayMs = backoffAlgorithm.getDelayMs(attempt);
+                publisher.afterIntermediateFail(this, e, delayMs);
+                publisher.schedulePublish(exchange, routingKey, props, payload, attempt + 1, delayMs, subscriber);
             } else {
                 publisher.afterFinalFail(this, e);
                 subscriber.onError(e);

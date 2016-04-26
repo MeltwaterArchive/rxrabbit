@@ -54,7 +54,7 @@ public class DefaultConsumerFactory implements ConsumerFactory {
 
     @Override
     public Observable<Message> createConsumer(final String exchange, final String routingKey) {
-        final ConnectionRetryHandler retryHandler = new ConnectionRetryHandler(settings.getRetry_count());
+        final ConnectionRetryHandler retryHandler = new ConnectionRetryHandler(settings.getBackoff_algorithm(), settings.getRetry_count());
         return Observable.create(new Observable.OnSubscribe<Message>() {
             @Override
             public void call(Subscriber<? super Message> subscriber) {
@@ -102,7 +102,8 @@ public class DefaultConsumerFactory implements ConsumerFactory {
                 reTryCount,
                 settings.getClose_timeout_millis(),
                 consumerObserveOnScheduler,
-                consumeEventListener);
+                consumeEventListener,
+                settings.getBackoff_algorithm());
         List<Observable<Message>> consumers = new ArrayList<>();
         for(int i=0; i<settings.getNum_channels(); i++){
             consumers.add(consumer.consume());

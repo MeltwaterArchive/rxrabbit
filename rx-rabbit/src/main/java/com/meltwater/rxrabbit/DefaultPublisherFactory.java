@@ -61,7 +61,8 @@ public class DefaultPublisherFactory implements PublisherFactory{
                     publishEventListener,
                     settings.getPublish_timeout_secs(),
                     settings.getClose_timeout_millis(),
-                    1));
+                    1,
+                    settings.getBackoff_algorithm()));
         }
         return new RoundRobinPublisher(publishers);
     }

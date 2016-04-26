@@ -178,23 +178,17 @@ public class DefaultChannelFactory implements ChannelFactory {
             }
         }
 
+        return createConnection(connectionType);
+    }
+
+    private synchronized Connection createConnection(ChannelType connectionType) throws ConnectionFailureException {
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
         Date startTime = new Date();
         sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
         settings.getClient_properties().put("connection_type", connectionType.toString());
         settings.getClient_properties().put("connect_time", sdf.format(startTime)+"Z");
 
-        log.infoWithParams("Creating "+connectionType+" connection to broker ...",
-                "address", addresses.get(0).toString(),
-                "settings", settings.toString());
-
-        //TODO use all the values in addresses (connect to them in random? order (or use a configurable/programmable strategy??) )
         ConnectionFactory cf = new ConnectionFactory();
-        cf.setPassword(addresses.get(0).password);
-        cf.setUsername(addresses.get(0).username);
-        cf.setPort(addresses.get(0).port);
-        cf.setHost(addresses.get(0).host);
-        cf.setVirtualHost(addresses.get(0).virtualHost);
         cf.setRequestedHeartbeat(settings.getHeartbeat());
         cf.setConnectionTimeout(settings.getConnection_timeout_millis());
         cf.setShutdownTimeout(settings.getShutdown_timeout_millis());
@@ -206,11 +200,34 @@ public class DefaultChannelFactory implements ChannelFactory {
         cf.setAutomaticRecoveryEnabled(false);//Hard coded ..
         cf.setTopologyRecoveryEnabled(false);//Hard coded ..
 
-        Connection connection;
-        try {
-            connection = cf.newConnection();
-        } catch (Exception e) {
-            throw new ConnectionFailureException(cf, e);
+        Exception lastException = null;
+        Connection connection = null;
+        for (BrokerAddresses.BrokerAddress address : addresses) {
+            cf.setPassword(address.password);
+            cf.setUsername(address.username);
+            cf.setPort(address.port);
+            cf.setHost(address.host);
+            cf.setVirtualHost(address.virtualHost);
+            try {
+                log.infoWithParams("Creating "+connectionType+" connection to broker ...",
+                        "address", address.toString(),
+                        "settings", settings.toString());
+                connection = cf.newConnection();
+                boolean isOpen = connection.isOpen();
+                if(!isOpen){
+                    continue;
+                }
+                break;
+            } catch (Exception e) {
+                log.errorWithParams("Failed to createConnection to broker",
+                        e,
+                        "address", address.toString());
+                lastException = e;
+            }
+        }
+
+        if(connection == null){
+            throw new ConnectionFailureException(cf, lastException);
         }
 
         conToChannel.put(connectionType,
@@ -224,15 +241,17 @@ public class DefaultChannelFactory implements ChannelFactory {
                 "address", addresses.get(0).toString(),
                 "localPort", ((AMQConnection) connection).getLocalPort(),
                 "settings", settings.toString());
+
         return connection;
+
     }
 
     public static class ConnectionInfo {
         final Connection connection;
         final List<ChannelImpl> channels;
-        final Map<String, String> clientProperties;
+        final Map<String, Object> clientProperties;
         final ChannelType type;
-        ConnectionInfo(Connection connection, List<ChannelImpl> channels, Map<String,String> clientProperties, ChannelType type) {
+        ConnectionInfo(Connection connection, List<ChannelImpl> channels, Map<String,Object> clientProperties, ChannelType type) {
             this.connection = connection;
             this.channels = channels;
             this.clientProperties = clientProperties;

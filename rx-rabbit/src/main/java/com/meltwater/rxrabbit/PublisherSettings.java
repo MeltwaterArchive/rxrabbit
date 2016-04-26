@@ -1,5 +1,8 @@
 package com.meltwater.rxrabbit;
 
+import com.meltwater.rxrabbit.util.BackoffAlgorithm;
+import com.meltwater.rxrabbit.util.FibonacciBackoffAlgorithm;
+
 public class PublisherSettings {
 
     public static final int RETRY_FOREVER = -1;
@@ -14,6 +17,7 @@ public class PublisherSettings {
     private int retry_count             = DEFAULT_RETRY_COUNT;
     private long publish_timeout_secs   = DEFAULT_PUBLISH_TIMEOUT_SECS;
     private long close_timeout_millis   = DEFAULT_CLOSE_TIMEOUT_MILLIS;
+    private BackoffAlgorithm backoff_algorithm = new FibonacciBackoffAlgorithm();
 
     public int getNum_channels() {
         return num_channels;
@@ -33,6 +37,10 @@ public class PublisherSettings {
 
     public long getClose_timeout_millis() {
         return close_timeout_millis;
+    }
+
+    public BackoffAlgorithm getBackoff_algorithm() {
+        return backoff_algorithm;
     }
 
     public PublisherSettings withNumChannels(int num_channels) {
@@ -59,6 +67,11 @@ public class PublisherSettings {
 
     public PublisherSettings withCloseTimeoutMillis(long close_timeout_millis) {
         this.close_timeout_millis = close_timeout_millis;
+        return this;
+    }
+
+    public PublisherSettings withBackoffAlgorithm(BackoffAlgorithm backoff_algorithm) {
+        this.backoff_algorithm = backoff_algorithm;
         return this;
     }
 
@@ -97,4 +110,5 @@ public class PublisherSettings {
                 ", close_timeout_millis:" + close_timeout_millis +
                 '}';
     }
+
 }

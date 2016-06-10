@@ -3,8 +3,6 @@ package com.meltwater.rxrabbit;
 import com.meltwater.rxrabbit.impl.ConnectionRetryHandler;
 import com.meltwater.rxrabbit.impl.DefaultChannelFactory;
 import com.meltwater.rxrabbit.impl.SingleChannelConsumer;
-import com.meltwater.rxrabbit.util.BackoffAlgorithm;
-import com.meltwater.rxrabbit.util.FibonacciBackoffAlgorithm;
 import com.meltwater.rxrabbit.util.Logger;
 import rx.Observable;
 import rx.Scheduler;

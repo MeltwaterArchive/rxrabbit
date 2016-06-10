@@ -3,8 +3,6 @@ package com.meltwater.rxrabbit;
 import com.meltwater.rxrabbit.impl.DefaultChannelFactory;
 import com.meltwater.rxrabbit.impl.RoundRobinPublisher;
 import com.meltwater.rxrabbit.impl.SingleChannelPublisher;
-import com.meltwater.rxrabbit.util.BackoffAlgorithm;
-import com.meltwater.rxrabbit.util.FibonacciBackoffAlgorithm;
 import com.meltwater.rxrabbit.util.Logger;
 import rx.Scheduler;
 import rx.schedulers.Schedulers;

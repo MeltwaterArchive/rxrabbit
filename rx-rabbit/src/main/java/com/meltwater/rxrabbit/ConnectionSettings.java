@@ -75,9 +75,8 @@ public class ConnectionSettings {
     }
 
     public Map<String, Object> getClient_properties() {
-        Map<String, Object> propsWithCapabilities = new HashMap<>(client_properties);
-        propsWithCapabilities.put("capabilities", defaultClientCapabilities);
-        return propsWithCapabilities;
+        client_properties.put("capabilities", defaultClientCapabilities);
+        return client_properties;
     }
 
 

@@ -58,13 +58,15 @@ public class BrokerAddresses implements Iterable<BrokerAddresses.BrokerAddress>{
 
     public static class BrokerAddress {
 
+        public final String scheme;
         public final String username;
         public final String password;
         public final String virtualHost;
         public final String host;
         public final int port;
 
-        private BrokerAddress(String username, String password, String virtualHost, String host, int port) {
+        private BrokerAddress(String scheme, String username, String password, String virtualHost, String host, int port) {
+            this.scheme = scheme;
             this.username = username;
             this.password = password;
             this.virtualHost = virtualHost;
@@ -74,7 +76,7 @@ public class BrokerAddresses implements Iterable<BrokerAddresses.BrokerAddress>{
 
         @Override
         public String toString() {
-            return "amqp://"+host+":"+(port==-1?5672:port)+"/"+(virtualHost.equals("/")?"":virtualHost);
+            return scheme + "://"+host+":"+(port==-1?5672:port)+"/"+(virtualHost.equals("/")?"":virtualHost);
         }
 
     }
@@ -85,23 +87,24 @@ public class BrokerAddresses implements Iterable<BrokerAddresses.BrokerAddress>{
         private String password     = DEFAULT_PASS;
         private String virtualHost  = DEFAULT_VHOST;
         private String host         = DEFAULT_HOST;
+        private String scheme       = "amqp";
         private int port            = USE_DEFAULT_PORT;
 
         public BrokerAddress build() {
-            return new BrokerAddress(username, password, virtualHost, host, port);
+            return new BrokerAddress(scheme,username, password, virtualHost, host, port);
         }
 
         public BrokerAddressBuilder withUri(URI amqpUri) throws NoSuchAlgorithmException, KeyManagementException, URISyntaxException {
             ConnectionFactory tmp = new ConnectionFactory();
             tmp.setUri(amqpUri);
-            cloneConnectionSettings(tmp);
+            cloneConnectionSettings(tmp,amqpUri);
             return this;
         }
 
         public BrokerAddressBuilder withUriString(String amqpUriString) throws NoSuchAlgorithmException, KeyManagementException, URISyntaxException {
             ConnectionFactory tmp = new ConnectionFactory();
             tmp.setUri(amqpUriString);
-            cloneConnectionSettings(tmp);
+            cloneConnectionSettings(tmp,new URI(amqpUriString));
             return this;
         }
 
@@ -130,12 +133,13 @@ public class BrokerAddresses implements Iterable<BrokerAddresses.BrokerAddress>{
             return this;
         }
 
-        private void cloneConnectionSettings(ConnectionFactory tmp) {
+        private void cloneConnectionSettings(ConnectionFactory tmp, URI uri) {
             username = tmp.getUsername();
             password = tmp.getPassword();
             virtualHost = tmp.getVirtualHost();
             host = tmp.getHost();
             port = tmp.getPort();
+            scheme = uri.getScheme();
         }
     }
 

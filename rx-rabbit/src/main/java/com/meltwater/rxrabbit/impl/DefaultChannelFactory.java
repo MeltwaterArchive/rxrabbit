@@ -19,6 +19,7 @@ import com.rabbitmq.client.GetResponse;
 import com.rabbitmq.client.impl.AMQConnection;
 import rx.functions.Func2;
 
+import javax.net.ssl.SSLSocketFactory;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -209,6 +210,10 @@ public class DefaultChannelFactory implements ChannelFactory {
             cf.setHost(address.host);
             cf.setVirtualHost(address.virtualHost);
             try {
+                if(address.scheme.toLowerCase().equals("amqps")){
+                    cf.useSslProtocol();
+                    cf.setSocketFactory(SSLSocketFactory.getDefault()); //Because rabbit uses NoopTrustStore by default...
+                }
                 log.infoWithParams("Creating "+connectionType+" connection to broker ...",
                         "address", address.toString(),
                         "settings", settings.toString());

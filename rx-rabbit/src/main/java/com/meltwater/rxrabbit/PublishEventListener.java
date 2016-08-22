@@ -8,7 +8,7 @@ public interface PublishEventListener {
 
     void afterConfirm(PublishEvent event);
 
-    void afterIntermediateFail(PublishEvent event, Exception error, int secsUntilNextAttempt);
+    void afterIntermediateFail(PublishEvent event, Exception error, int msUntilNextAttempt);
 
     void afterFinalFail(PublishEvent event, Exception error);
 }

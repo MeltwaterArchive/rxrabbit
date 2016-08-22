@@ -14,7 +14,7 @@ public class NoopPublishEventListener implements PublishEventListener {
     }
 
     @Override
-    public void afterIntermediateFail(PublishEvent event, Exception error, int secsUntilNextAttempt) {
+    public void afterIntermediateFail(PublishEvent event, Exception error, int msUntilNextAttempt) {
     }
 
     @Override

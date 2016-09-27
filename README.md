@@ -29,13 +29,61 @@ Main supported use cases:
 - Publish messages to an exchange with (or without) publisher confirmation but with mandatory=false and immediate=false.
 - Perform basic 'admin' operations (declare, remove and purge queues, exchanges and bindings)
 
-### Usage guide
 
-### TODO add gradle and maven info!
+## How to use it
+
+### Dependencies
+
+*Gradle:*
+
+```groovy
+    
+repositories {
+   jcenter()
+}
+...
+
+dependencies {
+    compile 'com.meltwater:rx-rabbit:<insert-version>'
+    ...
+}
+```
+       
+*Maven:*
+
+```xml  
+<repositories>
+   <repository>
+      <id>jcenter</id>
+      <url>http://jcenter.bintray.com</url>
+      <snapshots>
+        <enabled>true</enabled>
+        <updatePolicy>never</updatePolicy>
+        <checksumPolicy>warn</checksumPolicy>
+      </snapshots>
+       <releases>
+         <enabled>true</enabled>
+         <checksumPolicy>warn</checksumPolicy>
+      </releases>
+   </repository>
+   ...
+</repositories>
+...
+
+<dependency>
+  <groupId>com.meltwater</groupId>
+  <artifactId>rx-rabbit</artifactId>
+  <version><insert-version></version>
+  <type>jar</type>
+  ...
+</dependency>
+```
+
+### Code examples
 
 The best way to get a feel for how the API should be used have a look at the [RxRabbitTests](rx-rabbit/src/test/groovy/com/meltwater/rxrabbit/RxRabbitTests.java) or the [ExampleCode](rx-rabbit/src/test/groovy/com/meltwater/rxrabbit/example/ExampleCode.java) class.
 
-You may also have a look at the javadoc as most core API classes and interfaces are fairly well documented.
+You can also have a look at the javadoc as most core API classes and interfaces are reasonably well documented.
 
 ### Build and run tests
 

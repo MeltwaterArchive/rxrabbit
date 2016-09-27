@@ -1,5 +1,8 @@
 package com.meltwater.rxrabbit;
 
+/**
+ * Listener that get notified about publishing events
+ */
 public interface PublishEventListener {
 
     void beforePublish(PublishEvent event);

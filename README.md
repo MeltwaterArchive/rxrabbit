@@ -44,7 +44,7 @@ repositories {
 ...
 
 dependencies {
-    compile 'com.meltwater:rx-rabbit:<insert-version>'
+    compile 'com.meltwater:rxrabbit:<insert-version>'
     ...
 }
 ```
@@ -72,7 +72,7 @@ dependencies {
 
 <dependency>
   <groupId>com.meltwater</groupId>
-  <artifactId>rx-rabbit</artifactId>
+  <artifactId>rxrabbit</artifactId>
   <version><insert-version></version>
   <type>jar</type>
   ...
@@ -81,7 +81,7 @@ dependencies {
 
 ### Code examples
 
-The best way to get a feel for how the API should be used have a look at the [RxRabbitTests](rx-rabbit/src/test/groovy/com/meltwater/rxrabbit/RxRabbitTests.java) or the [ExampleCode](rx-rabbit/src/test/groovy/com/meltwater/rxrabbit/example/ExampleCode.java) class.
+The best way to get a feel for how the API should be used have a look at the [RxRabbitTests](rxrabbit/src/test/groovy/com/meltwater/rxrabbit/RxRabbitTests.java) or the [ExampleCode](rxrabbit/src/test/groovy/com/meltwater/rxrabbit/example/ExampleCode.java) class.
 
 You can also have a look at the javadoc as most core API classes and interfaces are reasonably well documented.
 

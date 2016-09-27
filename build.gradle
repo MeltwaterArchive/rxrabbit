@@ -1,0 +1,38 @@
+import static java.lang.System.getenv
+
+static calcVersion(def project) {
+    if (!project.version.toString().contains("-SNAPSHOT")) {
+        return project.version + (getenv("SNAPSHOT") == null ? "" : "-SNAPSHOT")
+    }else {
+        return project.version
+    }
+}
+
+buildscript {
+
+    repositories {
+        jcenter()
+    }
+    dependencies {
+        classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.7'
+    }
+}
+
+plugins {
+    id "com.jfrog.bintray" version "1.7"
+}
+
+subprojects {
+    group       = 'com.meltwater'
+    version     = calcVersion(parent.project)
+}
+
+project.version = calcVersion(project)
+project.group = 'com.meltwater'
+
+
+logger.info("Project version is set to {}", project.version)
+
+task ('wrapper', type:Wrapper) {
+    gradleVersion = '3.1'
+}

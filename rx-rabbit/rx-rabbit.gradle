@@ -1,0 +1,82 @@
+import static java.lang.System.getenv
+
+logger.info("Project version is set to {}", project.version)
+
+apply plugin: 'java'
+apply plugin: 'groovy'
+apply plugin: 'maven'
+apply plugin: "maven-publish"
+apply plugin: 'com.jfrog.bintray'
+
+repositories {
+    jcenter()
+}
+
+dependencies {
+
+    compile 'com.rabbitmq:amqp-client:3.5.6' //TODO upgrade to 3.6.5 (or later) upgrading failes the multi broker test :-(
+    compile 'io.reactivex:rxjava:1.2.0'
+    compile 'com.google.guava:guava:18.0'  //TODO upgrade to 19.0 ??
+    compile "org.slf4j:slf4j-api:1.7.12"
+
+    testCompile 'com.meltwater.docker:kotlin-compose:1.0.0'
+
+    testCompile 'com.jayway.awaitility:awaitility:1.7.0'
+    testCompile 'ch.qos.logback:logback-classic:1.1.7'
+    testCompile 'com.github.kittinunf.fuel:fuel:1.1.2'
+    testCompile 'org.spockframework:spock-core:1.0-groovy-2.4'
+    testCompile 'junit:junit:4.11'
+    testCompile 'com.ning:async-http-client:1.9.31'
+    testCompile 'io.netty:netty:3.10.5.Final'
+    testCompile 'joda-time:joda-time:2.1'
+    testCompile "com.fasterxml.jackson.core:jackson-core:2.7.2"
+    testCompile "com.fasterxml.jackson.core:jackson-databind:2.7.2"
+}
+
+
+task sourceJar(type: Jar) {
+    from sourceSets.main.allJava
+    classifier "sources"
+}
+
+
+publishing {
+    publications {
+        JavaArtifacts(MavenPublication) {
+            from components.java
+            Artifact sourceJar
+            groupId project.group
+            artifactId project.name
+            version project.version
+        }
+    }
+    repositories {
+        maven {
+            credentials {
+                username getenv('MAVEN_USER')
+                password getenv('MAVEN_PASSWORD')
+            }
+            url getenv('MAVEN_URL')
+        }
+    }
+}
+
+bintray {
+    user = getenv('BINTRAY_USER')
+    key = getenv('BINTRAY_KEY')
+    publications = ['JavaArtifacts']
+    publish = false
+    pkg {
+        repo = 'opensource'
+        name = 'docker-compose-java'
+        userOrg = 'meltwater'
+        licenses = ['MIT']
+        vcsUrl = 'git@github.com:meltwater/docker-compose-java.git'
+        version {
+            gpg{
+                sign = true
+            }
+            released  = new Date()
+        }
+    }
+}

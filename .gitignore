@@ -1,0 +1,15 @@
+/.idea
+/classes
+### Gradle template
+.gradle
+build/
+*.iml
+
+# Ignore Gradle GUI config
+gradle-app.setting
+
+target
+pom.xml
+
+# Avoid ignoring Gradle wrapper jar file (.jar files are usually ignored)
+!gradle-wrapper.jar

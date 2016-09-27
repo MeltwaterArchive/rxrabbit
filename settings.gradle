@@ -1,0 +1,7 @@
+include "rx-rabbit"
+
+rootProject.children.each { project ->
+    project.buildFileName = "${project.name}.gradle"
+    assert project.projectDir.isDirectory()
+    assert project.buildFile.isFile()
+}

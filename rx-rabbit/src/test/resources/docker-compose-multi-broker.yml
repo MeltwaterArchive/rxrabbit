@@ -1,0 +1,23 @@
+rabbit1:
+  build: ${RESOURCE_PATH}/rabbit-docker-cluster/
+  hostname: rabbit1
+  environment:
+    - RABBITMQ_ERLANG_COOKIE='cupcake'
+  ports:
+    - "${TEST_PORT_1}:15672"
+    - "${TEST_PORT_2}:5672"
+    - "${TEST_PORT_3}:5673"
+
+rabbit2:
+  build: ${RESOURCE_PATH}/rabbit-docker-cluster/
+  hostname: rabbit2
+  links:
+    - rabbit1
+  environment:
+    - RABBITMQ_ERLANG_COOKIE='cupcake'
+    - CLUSTERED=true
+    - CLUSTER_WITH=rabbit1
+  ports:
+    - "${TEST_PORT_4}:15672"
+    - "${TEST_PORT_5}:5672"
+    - "${TEST_PORT_6}:5673"

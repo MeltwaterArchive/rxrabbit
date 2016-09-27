@@ -1,0 +1,6 @@
+rabbit:
+  image: "rabbitmq:3.5.6-management"
+  ports:
+    - "${TEST_PORT_1}:15672"
+    - "${TEST_PORT_2}:5672"
+    - "${TEST_PORT_3}:5673"

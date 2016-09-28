@@ -7,7 +7,7 @@
         </encoder>
     </appender>
 
-    <logger name="com.meltwater.rxrabbit"   level="DEBUG"/>
+    <logger name="com.meltwater.rxrabbit"   level="INFO"/>
 
     <root level="INFO">
         <appender-ref ref="STDOUT" />

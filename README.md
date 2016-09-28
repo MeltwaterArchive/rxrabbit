@@ -94,6 +94,24 @@ Build by running `./gradlew clean build`.
 
 Note that the build will use [docker](https://www.docker.com/) when running the tests, so you need to have docker v1.8 or later installed for the build to succeed.
 
-Also note that it is currently NOT supported to run the test on OSX using docker machine, you need to be able to connect to docker containers using localhost:<port>. 
+Also note that it is currently NOT supported to run the test on OSX using docker machine, you need to be able to connect to docker containers using localhost:<port>.
+
+## RxRabbit example apps
+
+The [example-app](example-app) module contains example main classes that can useful to look at as a starting point for other developers.
+
+[ExampleAppShovel](example-app/src/main/java/com/meltwater/rxrabbit/example/ExampleAppShovel.java) - Consumes messages from one queue and publishes the messages to another queue
+[LoadGenerator](example-app/src/main/java/com/meltwater/rxrabbit/example/LoadGenerator.java) - Generates and publishes messages
+
+
+### Run shovel example app
+Start up RabbitMQ and create the right exchanges & queues:
+
+    docker-compose up
+
+Run the LoadGenerator and the Shovel in parallel using gradle.
+ 
+    ./gradlew example-app:runLoadGenerator example-app:runShovel -Dpublish.message.count=5000 --parallel
+    
 
 

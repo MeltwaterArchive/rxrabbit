@@ -5,7 +5,7 @@ rabbit:
     - "5672:5672"
 
 rabbit-puppy:
-  build: "./rabbit_puppy"
+  build: "example-app/rabbit_puppy"
   links:
     - rabbit:rabbit
   command: apply -b http://rabbit:15672/ -u guest -p guest -c /config/rabbitcfg.yaml -w 60

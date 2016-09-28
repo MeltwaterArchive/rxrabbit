@@ -8,3 +8,16 @@ dependencies {
     testCompile 'junit:junit:4.11'
     testCompile 'joda-time:joda-time:2.1'
 }
+
+
+task runShovel(type:JavaExec) {
+    main = "com.meltwater.rxrabbit.example.ExampleAppShovel"
+    classpath = sourceSets.main.runtimeClasspath
+}
+
+task runLoadGenerator(type:JavaExec) {
+    main = "com.meltwater.rxrabbit.example.LoadGenerator"
+    systemProperties = [:]
+    systemProperties.put("publish.message.count",System.properties['publish.message.count'])
+    classpath = sourceSets.main.runtimeClasspath
+}

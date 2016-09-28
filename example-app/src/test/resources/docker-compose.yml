@@ -1,0 +1,5 @@
+rabbit:
+  image: "rabbitmq:3.5.6-management"
+  ports:
+    - "15672"
+    - "5672"

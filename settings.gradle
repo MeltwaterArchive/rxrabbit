@@ -1,5 +1,5 @@
 include "rxrabbit"
-include "example-app"
+include "example-apps"
 include "docker-test-utils"
 
 rootProject.children.each { project ->

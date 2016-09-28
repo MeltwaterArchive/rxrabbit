@@ -82,7 +82,7 @@ dependencies {
 
 ### Code examples
 
-The best way to get a feel for how the API should be used have a look at the [example-app](example-app).
+The best way to get a feel for how the API should be used have a look at the [example-apps](example-apps).
 
 It is also useful to look at the [integration tests](rxrabbit/src/test/groovy/com/meltwater/rxrabbit/RxRabbitTests.java) and the [ExampleCode class](rxrabbit/src/test/java/com/meltwater/rxrabbit/example/ExampleCode.java) class.
 
@@ -98,10 +98,10 @@ Also note that it is currently NOT supported to run the test on OSX using docker
 
 ## RxRabbit example apps
 
-The [example-app](example-app) module contains example main classes that can useful to look at as a starting point for other developers.
+The [example-apps](example-apps) module contains example main classes that can useful to look at as a starting point for other developers.
 
-[ExampleAppShovel](example-app/src/main/java/com/meltwater/rxrabbit/example/ExampleAppShovel.java) - Consumes messages from one queue and publishes the messages to another queue
-[LoadGenerator](example-app/src/main/java/com/meltwater/rxrabbit/example/LoadGenerator.java) - Generates and publishes messages
+[ExampleAppShovel](example-apps/src/main/java/com/meltwater/rxrabbit/example/ExampleAppShovel.java) - Consumes messages from one queue and publishes the messages to another queue
+[LoadGenerator](example-apps/src/main/java/com/meltwater/rxrabbit/example/LoadGenerator.java) - Generates and publishes messages
 
 
 ### Run shovel example app
@@ -111,7 +111,7 @@ Start up RabbitMQ and create the right exchanges & queues:
 
 Run the LoadGenerator and the Shovel in parallel using gradle.
  
-    ./gradlew example-app:runLoadGenerator example-app:runShovel -Dpublish.message.count=5000 --parallel
+    ./gradlew example-apps:runLoadGenerator example-apps:runShovel -Dpublish.message.count=5000 --parallel
     
 
 

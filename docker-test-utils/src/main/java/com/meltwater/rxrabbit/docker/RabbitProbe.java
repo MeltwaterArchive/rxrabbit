@@ -1,4 +1,4 @@
-package com.meltwater.docker.test;
+package com.meltwater.rxrabbit.docker;
 
 
 import com.meltwater.rxrabbit.AdminChannel;
@@ -6,19 +6,19 @@ import com.meltwater.rxrabbit.BrokerAddresses;
 import com.meltwater.rxrabbit.ConnectionSettings;
 import com.meltwater.rxrabbit.impl.DefaultChannelFactory;
 
-public class RabbitProbe {
+class RabbitProbe {
 
-    private final String hostname = "docker.local";
+    private final String hostname = "localhost";
     private final BrokerAddresses addresses;
     private final String tcpPort;
     private Exception exception = new RuntimeException("dummy");
 
-    public RabbitProbe(String tcpPort) {
+    RabbitProbe(String tcpPort) {
         this.addresses = new BrokerAddresses("amqp://"+hostname+":"+tcpPort);
         this.tcpPort = tcpPort;
     }
 
-    public Boolean isSatisfied() {
+    Boolean isSatisfied() {
         AdminChannel adminChannel  = null;
         try {
             adminChannel = new DefaultChannelFactory(addresses, new ConnectionSettings()).createAdminChannel();
@@ -36,7 +36,7 @@ public class RabbitProbe {
         return true;
     }
 
-    public String getLatestError() {
+    String getLatestError() {
         return "Failed to create connection with rabbit on "+ hostname +":"+tcpPort+" error: "+exception.getMessage();
     }
 

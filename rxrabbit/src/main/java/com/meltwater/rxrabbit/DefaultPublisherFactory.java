@@ -30,16 +30,20 @@ public class DefaultPublisherFactory implements PublisherFactory{
     private Scheduler observeOnScheduler = Schedulers.computation();
 
     public DefaultPublisherFactory(ChannelFactory channelFactory, PublisherSettings settings) {
+        assert settings!=null;
+        assert channelFactory!=null;
         this.channelFactory = channelFactory;
         this.settings = settings;
     }
 
     public DefaultPublisherFactory setObserveOnScheduler(Scheduler observeOnScheduler) {
+        assert observeOnScheduler!=null;
         this.observeOnScheduler = observeOnScheduler;
         return this;
     }
 
     public DefaultPublisherFactory setPublishEventListener(PublishEventListener publishEventListener) {
+        assert publishEventListener!=null;
         this.publishEventListener = publishEventListener;
         return this;
     }

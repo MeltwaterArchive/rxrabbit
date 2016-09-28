@@ -1,11 +1,11 @@
 rabbit:
   image: "rabbitmq:3.5.6-management"
   ports:
-    - "${TEST_PORT_1}:15672"
-    - "${TEST_PORT_2}:5672"
+    - "15672:15672"
+    - "5672:5672"
 
 rabbit-puppy:
-  build: "${RESOURCE_PATH}/../../../rabbit_puppy"
+  build: "./rabbit_puppy"
   links:
     - rabbit:rabbit
   command: apply -b http://rabbit:15672/ -u guest -p guest -c /config/rabbitcfg.yaml -w 60

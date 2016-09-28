@@ -1,4 +1,4 @@
-package com.meltwater.docker.test;
+package com.meltwater.rxrabbit.docker;
 
 import com.google.common.base.Stopwatch;
 import com.jayway.awaitility.Awaitility;
@@ -10,15 +10,15 @@ import com.meltwater.docker.compose.data.InspectData;
 
 import java.util.concurrent.TimeUnit;
 
-public class RabbitHandler {
+public class RabbitDockerContainer {
 
-    public final long POLL_INTERVAL = 500L;
+    private final long POLL_INTERVAL = 500L;
 
     private final DockerCompose compose;
     private final InspectDataCache inspectDataCache;
     private final String containerName;
 
-    public RabbitHandler(DockerCompose compose, InspectDataCache inspectDataCache, String containerName) {
+    RabbitDockerContainer(DockerCompose compose, InspectDataCache inspectDataCache, String containerName) {
         this.compose = compose;
         this.inspectDataCache = inspectDataCache;
         this.containerName = containerName;
@@ -37,30 +37,26 @@ public class RabbitHandler {
         return "/"+prefix+"_"+getTypeString()+"_"+1;
     }
 
-    public RabbitHandler kill(){
+    public RabbitDockerContainer kill(){
         String instanceId = inspectDataCache.findId(containerName());
         Docker.INSTANCE.kill(instanceId);
         waitForContainerToDie(instanceId);
         return this;
     }
 
-    public RabbitHandler start(){
+    public RabbitDockerContainer start(){
         String instanceId = inspectDataCache.findId(containerName());
         Docker.INSTANCE.start(instanceId);
         return this;
     }
 
-    public RabbitHandler assertUp() {
-        return ensureUp();
-    }
-
-    public RabbitHandler ensureUp() {
+    public RabbitDockerContainer assertUp() {
         RabbitProbe probe = getProbe();
         try {
             Awaitility
                     .with()
-                    .pollDelay(1, TimeUnit.SECONDS)
-                    .pollInterval(100, TimeUnit.MILLISECONDS)
+                    .pollDelay(2, TimeUnit.SECONDS)
+                    .pollInterval(500, TimeUnit.MILLISECONDS)
                     .await()
                     .atMost(Duration.FIVE_MINUTES)
                     .until(probe::isSatisfied);
@@ -70,7 +66,7 @@ public class RabbitHandler {
         return this;
     }
 
-    private RabbitHandler waitForContainerToDie(String containerId) {
+    private RabbitDockerContainer waitForContainerToDie(String containerId) {
         Stopwatch stopwatch = Stopwatch.createStarted();
 
         while (stopwatch.elapsed(TimeUnit.SECONDS) < 30) {

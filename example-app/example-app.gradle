@@ -1,12 +1,10 @@
 apply plugin: 'java'
 
 dependencies {
-    compile project (':rxrabbit')
+    compile project(':rxrabbit')
+    compile 'ch.qos.logback:logback-classic:1.1.7'
 
-    testCompile 'com.ning:async-http-client:1.9.31'
-    testCompile 'io.netty:netty:3.10.5.Final'
-    testCompile 'org.spockframework:spock-core:1.0-groovy-2.4'
+    testCompile project(':docker-test-utils')
     testCompile 'junit:junit:4.11'
-
-
+    testCompile 'joda-time:joda-time:2.1'
 }

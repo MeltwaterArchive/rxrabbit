@@ -1,4 +1,4 @@
-package com.meltwater.rxrabbit.java7;
+package com.meltwater.rxrabbit.example;
 
 import com.meltwater.rxrabbit.BrokerAddresses;
 import com.meltwater.rxrabbit.ChannelFactory;
@@ -18,8 +18,6 @@ import com.meltwater.rxrabbit.impl.DefaultChannelFactory;
 import com.meltwater.rxrabbit.util.Logger;
 import rx.Observable;
 import rx.Subscription;
-import rx.functions.Action1;
-import rx.functions.Func1;
 
 import java.io.IOException;
 import java.util.Properties;
@@ -73,31 +71,17 @@ public class ExampleAppShovel {
                             final BrokerAddresses addresses) {
 
         ChannelFactory channelFactory = new DefaultChannelFactory(addresses,connectionSettings);
-        PublisherFactory publisherFactory = new DefaultPublisherFactory(channelFactory, new PublisherSettings()); //TODO publisher settings
-        ConsumerFactory consumerFactory = new DefaultConsumerFactory(channelFactory, new ConsumerSettings());
+        PublisherSettings settings1 = new PublisherSettings();
+        PublisherFactory publisherFactory = new DefaultPublisherFactory(channelFactory, settings1); //TODO publisher settings in the file
+        ConsumerSettings settings = new ConsumerSettings();
+        settings.withConsumerTagPrefix("");
+        ConsumerFactory consumerFactory = new DefaultConsumerFactory(channelFactory, settings); //TODO publisher settings in the file
 
         final RabbitPublisher publisher =  publisherFactory.createPublisher();
 
         messages = consumerFactory
                 .createConsumer(inputQueue)
-                .map(new Func1<Message, Message>() {
-                    @Override
-                    public Message call(Message message) {
-                        return message; //TODO  log message
-                    }
-                })
-                .doOnNext(new Action1<Message>() {
-                    @Override
-                    public void call(Message message) {
-                        publisher.call(
-                                outputExchange,
-                                new RoutingKey(message.envelope.getRoutingKey()),
-                                message.basicProperties,
-                                new Payload(message.payload))
-                                .doOnSuccess(ignore -> message.acknowledger.ack())
-                                .doOnError(throwable -> message.acknowledger.reject());
-                    }
-                })
+                .doOnNext(message -> handleMessage(outputExchange, publisher, message))
                 .doOnCompleted(() -> {
                     try {
                         publisher.close();
@@ -107,6 +91,26 @@ public class ExampleAppShovel {
                     log.errorWithParams("Fatal error encountered. Closing down application.", e);
                     System.exit(1);
                 });
+    }
+
+    private void handleMessage(Exchange outputExchange, RabbitPublisher publisher, Message message) {
+        try {
+            //change in logback.xml to DEBUG level to see every message payload logged
+            log.debugWithParams("Received message.",
+                    "payload", new String(message.payload),
+                    "metadata", message.basicProperties);
+            publisher.call(
+                    outputExchange,
+                    new RoutingKey(message.envelope.getRoutingKey()),
+                    message.basicProperties,
+                    new Payload(message.payload)
+            )
+                    .doOnSuccess(ignore -> message.acknowledger.ack())
+                    .doOnError(throwable -> message.acknowledger.reject())
+                    .subscribe();
+        }catch (Exception e){
+            message.acknowledger.reject();
+        }
     }
 
     void start(){

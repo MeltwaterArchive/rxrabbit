@@ -6,7 +6,7 @@ import com.rabbitmq.client.AMQP
 import rx.schedulers.Schedulers
 import spock.lang.Specification
 
-class SingleChannelPublisherTest extends Specification {
+class SingleChannelPublisherSpecification extends Specification {
 
     def channelFactory = Mock(ChannelFactory)
     def scheduler = Schedulers.io()

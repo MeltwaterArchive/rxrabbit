@@ -33,16 +33,20 @@ public class DefaultConsumerFactory implements ConsumerFactory {
     private Scheduler consumerObserveOnScheduler = Schedulers.computation();
 
     public DefaultConsumerFactory(ChannelFactory channelFactory, ConsumerSettings settings) {
+        assert settings!=null;
+        assert channelFactory!=null;
         this.settings = settings;
         this.channelFactory = channelFactory;
     }
 
     public DefaultConsumerFactory setConsumeEventListener(ConsumeEventListener consumeEventListener) {
+        assert consumeEventListener!=null;
         this.consumeEventListener = consumeEventListener;
         return this;
     }
 
     public ConsumerFactory setConsumerObserveOnScheduler(Scheduler consumerObserveOnScheduler) {
+        assert consumerObserveOnScheduler!=null;
         this.consumerObserveOnScheduler = consumerObserveOnScheduler;
         return this;
     }

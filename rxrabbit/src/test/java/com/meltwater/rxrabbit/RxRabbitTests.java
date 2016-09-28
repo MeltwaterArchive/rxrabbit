@@ -681,7 +681,7 @@ public class RxRabbitTests {
     @RepeatRule.Repeat( times = 3 )
     public void ignores_acks_on_messages_delivered_before_connection_reset() throws Exception {
         int nrMessages = 20;
-        sendNMessagesAsync(nrMessages, 0, publisher).toList().toBlocking().last();
+        sendNMessagesAsync(nrMessages, 0, publisher).toBlocking().last();
 
         final Observable<Message> consumer = createConsumer();
         final Set<Integer> uniqueMessages = new TreeSet<>();

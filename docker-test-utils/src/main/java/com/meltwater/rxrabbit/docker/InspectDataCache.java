@@ -1,4 +1,4 @@
-package com.meltwater.docker.test;
+package com.meltwater.rxrabbit.docker;
 
 import com.meltwater.docker.compose.data.InspectData;
 
@@ -6,15 +6,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-public class InspectDataCache {
+class InspectDataCache {
 
     private final List<InspectData> cache = new ArrayList<>();
 
-    public String findId(String typeString) {
+    String findId(String typeString) {
         return findData(typeString).getId();
     }
 
-    public String bindingForTcpPort(String typeString, String port) {
+    String bindingForTcpPort(String typeString, String port) {
         return findData(typeString).getNetworkSettings().bindingForTcpPort(port);
     }
 
@@ -32,15 +32,15 @@ public class InspectDataCache {
         }
     }
 
-    public Boolean isEmpty() {
+    Boolean isEmpty() {
         return cache.isEmpty();
     }
 
-    public void populate(List<InspectData> upResult) {
+    void populate(List<InspectData> upResult) {
         cache.addAll(upResult);
     }
 
-    public void clear() {
+    void clear() {
         cache.clear();
     }
 }

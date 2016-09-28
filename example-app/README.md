@@ -1,6 +1,6 @@
-# RxRabbit: Java 7 example applications
+# RxRabbit: Java example applications
 
-This repo contains two main classes that can useful to look at as a starting point for other developers.
+This module contains two main classes that can useful to look at as a starting point for other developers.
 
 [ExampleApp] (src/main/java/com/meltwater/rxrabbit/java7/ExampleApp.java) - shows consume and publish
 

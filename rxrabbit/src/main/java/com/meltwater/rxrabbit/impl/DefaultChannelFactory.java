@@ -42,6 +42,8 @@ public class DefaultChannelFactory implements ChannelFactory {
     private final ConnectionSettings settings;
 
     public DefaultChannelFactory(BrokerAddresses addresses, ConnectionSettings settings) {
+        assert addresses!=null;
+        assert settings!=null;
         assert !addresses.getAddresses().isEmpty();
         this.addresses = addresses;
         this.settings = settings;
@@ -53,6 +55,7 @@ public class DefaultChannelFactory implements ChannelFactory {
 
     @Override
     public ConsumeChannel createConsumeChannel(final String queue)throws IOException {
+        assert queue!=null;
         return (ConsumeChannel)createChannel(
                 ChannelType.consume,
                 (hashCode, innerChannel) -> new ConsumeChannelImpl(innerChannel, queue, hashCode, ChannelType.consume, DefaultChannelFactory.this)
@@ -61,6 +64,8 @@ public class DefaultChannelFactory implements ChannelFactory {
 
     @Override
     public ConsumeChannel createConsumeChannel(String exchange, String routingkey) throws IOException {
+        assert exchange!=null;
+        assert routingkey!=null;
         return (ConsumeChannel)createChannel(
                 ChannelType.consume,
                 (hashCode, innerChannel) -> {

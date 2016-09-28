@@ -25,6 +25,10 @@ plugins {
 subprojects {
     group       = 'com.meltwater'
     version     = calcVersion(parent.project)
+
+    repositories {
+        jcenter()
+    }
 }
 
 project.version = calcVersion(project)

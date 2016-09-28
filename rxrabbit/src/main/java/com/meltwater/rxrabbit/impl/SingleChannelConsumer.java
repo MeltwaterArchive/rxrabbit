@@ -96,23 +96,20 @@ public class SingleChannelConsumer implements RabbitConsumer {
     private Observable<Message> createObservable() {
         final AtomicReference<InternalConsumer> consumerRef = new AtomicReference<>(null);
         final ConnectionRetryHandler retryHandler = new ConnectionRetryHandler(backoffAlgorithm, maxReconnectAttempts);
-        return create(new Observable.OnSubscribe<Message>() {
-            @Override
-            public void call(Subscriber<? super Message> subscriber) {
-                if (!subscriber.isUnsubscribed()) {
-                    try {
-                        startConsuming(subscriber, consumerRef);
-                    } catch (Exception e) {
-                        Throwable rootCause;
-                        if (e instanceof IOException && e.getCause() != null && e.getCause() instanceof ShutdownSignalException) {
-                            rootCause = e.getCause();
-                        } else {
-                            rootCause = e;
-                        }
-                        log.errorWithParams("Unexpected error when registering the rabbit consumer on the broker.",
-                            "error", rootCause);
-                        subscriber.onError(e);
+        return create((Observable.OnSubscribe<Message>) subscriber -> {
+            if (!subscriber.isUnsubscribed()) {
+                try {
+                    startConsuming(subscriber, consumerRef);
+                } catch (Exception e) {
+                    Throwable rootCause;
+                    if (e instanceof IOException && e.getCause() != null && e.getCause() instanceof ShutdownSignalException) {
+                        rootCause = e.getCause();
+                    } else {
+                        rootCause = e;
                     }
+                    log.errorWithParams("Unexpected error when registering the rabbit consumer on the broker.",
+                        "error", rootCause);
+                    subscriber.onError(e);
                 }
             }
         })

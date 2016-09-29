@@ -17,7 +17,7 @@ branches:
   - master
 install: true
 script:
-  - ./gradlew clean build --stacktrace
+  - ./gradlew clean build --info --no-daemon
   - ./upload_to_bintray.sh
 env:
   global:

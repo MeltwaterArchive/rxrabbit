@@ -3,9 +3,3 @@ rabbit:
   ports:
     - "${TEST_PORT_1}:15672"
     - "${TEST_PORT_2}:5672"
-
-rabbit-puppy:
-  build: "${RESOURCE_PATH}/../../../rabbit_puppy"
-  links:
-    - rabbit:rabbit
-  command: apply -b http://rabbit:15672/ -u guest -p guest -c /config/rabbitcfg.yaml -w 60

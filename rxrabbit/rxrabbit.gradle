@@ -15,7 +15,7 @@ dependencies {
     compile 'com.google.guava:guava:18.0'  //TODO upgrade to 19.0 ??
     compile "org.slf4j:slf4j-api:1.7.12"
 
-    testCompile project(':docker-test-utils')
+    testCompile project(':test-utils')
 
     testCompile 'junit:junit:4.11'
     testCompile 'joda-time:joda-time:2.1'

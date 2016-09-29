@@ -29,6 +29,15 @@ subprojects {
     repositories {
         jcenter()
         mavenLocal()
+        if (getenv('MAVEN_URL')!=null) {
+            maven {
+                credentials {
+                    username getenv('MAVEN_USER')
+                    password getenv('MAVEN_PASSWORD')
+                }
+                url getenv('MAVEN_URL')
+            }
+        }
     }
 }
 

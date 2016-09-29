@@ -7,6 +7,7 @@
     </appender>
 
     <logger name="com.meltwater.rxrabbit"   level="INFO"/>
+    <logger name="com.meltwater.docker.compose.DockerCompose"   level="DEBUG"/>
 
     <root level="INFO">
         <appender-ref ref="STDOUT" />

@@ -58,7 +58,7 @@ public class RabbitDockerContainer {
                     .pollDelay(2, TimeUnit.SECONDS)
                     .pollInterval(500, TimeUnit.MILLISECONDS)
                     .await()
-                    .atMost(Duration.TEN_SECONDS)
+                    .atMost(30, TimeUnit.SECONDS)
                     .until(probe::isSatisfied);
         } catch(ConditionTimeoutException e) {
             throw new RuntimeException(probe.getLatestError());

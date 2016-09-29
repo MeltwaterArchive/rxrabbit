@@ -17,7 +17,7 @@ public class LogFiltering {
      *
      * @return the same throwable as given in the input the argument, but with filtered stack trace
      */
-    static <T extends Throwable> T filterStackTrace(T throwable){
+    public static <T extends Throwable> T filterStackTrace(T throwable){
 
         if (throwable.getCause() != null) {
             filterStackTrace(throwable.getCause());

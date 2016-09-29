@@ -2,7 +2,7 @@ apply plugin: 'java'
 
 dependencies {
     compile project (':rxrabbit')
-    compile 'com.meltwater.docker:kotlin-compose:1.1.0-more_logging'
+    compile 'com.meltwater.docker:kotlin-compose:1.1.0-more_logging-SNAPSHOT' //TODO remove!!
     compile 'com.jayway.awaitility:awaitility:1.7.0'
     compile 'com.github.kittinunf.fuel:fuel:1.1.2'
 }

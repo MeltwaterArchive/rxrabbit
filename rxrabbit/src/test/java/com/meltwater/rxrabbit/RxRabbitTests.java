@@ -9,11 +9,9 @@ import com.meltwater.rxrabbit.util.ConstantBackoffAlgorithm;
 import com.meltwater.rxrabbit.util.Logger;
 import com.meltwater.rxrabbit.util.TakeAndAckTransformer;
 import com.ning.http.client.AsyncHttpClient;
-import com.ning.http.client.Realm;
 import com.ning.http.client.Response;
 import com.rabbitmq.client.AMQP;
 import com.rabbitmq.client.ConfirmListener;
-import org.joda.time.DateTime;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -45,6 +43,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static com.meltwater.rxrabbit.RabbitTestUtils.createQueues;
+import static com.meltwater.rxrabbit.RabbitTestUtils.declareAndBindQueue;
+import static com.meltwater.rxrabbit.RabbitTestUtils.realm;
+import static com.meltwater.rxrabbit.RabbitTestUtils.waitForAllConnectionsToClose;
+import static com.meltwater.rxrabbit.RabbitTestUtils.waitForNumQueuesToBePresent;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -57,46 +60,41 @@ import static org.junit.Assert.assertTrue;
 
 public class RxRabbitTests {
 
-    private final int TIMEOUT = 50_000;
-
-    @Rule
-    public RepeatRule repeatRule = new RepeatRule();
-    @Rule
-    public Timeout globalTimeout= new Timeout(TIMEOUT, TimeUnit.MILLISECONDS);
+    private final int TIMEOUT = 30_000;
 
     private static final Logger log = new Logger(RxRabbitTests.class);
 
-    private static final int CONNECTION_BACKOFF_TIME = 500;
-    private static final int CONNECTION_MAX_ATTEMPT = 20;
     private static final String inputQueue = "test-queue";
     private static final String inputExchange = "test-exchange";
-
-    private static DockerContainers dockerContainers = new DockerContainers(RxRabbitTests.class);
+    private static final DockerContainers dockerContainers = new DockerContainers(RxRabbitTests.class);
 
     private static String rabbitTcpPort;
     private static String rabbitAdminPort;
 
     private static AsyncHttpClient httpClient;
 
-    private static final Realm realm = new Realm.RealmBuilder()
-            .setPrincipal("guest")
-            .setPassword("guest")
-            .setUsePreemptiveAuth(true)
-            .setScheme(Realm.AuthScheme.BASIC)
-            .build();
     private static DefaultPublisherFactory publisherFactory;
     private static ConnectionSettings connectionSettings;
     private static PublisherSettings  publishSettings;
-
     private static ConsumerSettings consumeSettings;
     private static DefaultChannelFactory channelFactory;
     private static DefaultConsumerFactory consumerFactory;
     private static RabbitPublisher publisher;
+
     private static int prefetchCount = 10;
+
+    @Rule
+    public RepeatRule repeatRule = new RepeatRule();
+    @Rule
+    public HandleFailuresRule dockerOnFailRule = new HandleFailuresRule(dockerContainers);
+    @Rule
+    public Timeout globalTimeout = Timeout.builder()
+            .withTimeout(TIMEOUT, TimeUnit.MILLISECONDS)
+            .withLookingForStuckThread(true).build();
+
 
     @BeforeClass
     public static void setupSpec() throws Exception {
-
         dockerContainers.resetAll(false);
 
         Map<String,String> clientProps = new HashMap<>();
@@ -147,20 +145,7 @@ public class RxRabbitTests {
         httpClient = new AsyncHttpClient();
 
         messagesSeen.clear();
-        AdminChannel adminChannel;
-        for (int i = 1; i <= CONNECTION_MAX_ATTEMPT; i++) {
-            try {
-                adminChannel = channelFactory.createAdminChannel();
-                adminChannel.queueDelete(inputQueue, false, false);
-                declareQueueAndExchange(adminChannel);
-                adminChannel.closeWithError();
-                break;
-            } catch (Exception ignored) {
-                log.infoWithParams("Failed to create connection.. will try again ", "attempt", i, "max-attempts", CONNECTION_MAX_ATTEMPT);
-                Thread.sleep(CONNECTION_BACKOFF_TIME);
-                if(i==CONNECTION_MAX_ATTEMPT) throw ignored;
-            }
-        }
+        createQueues(channelFactory, inputQueue, new Exchange(inputExchange));
         publisher = publisherFactory.createPublisher();
     }
 
@@ -168,27 +153,7 @@ public class RxRabbitTests {
     public void teardown() throws Exception {
         publisher.close();
         messagesSeen.clear();
-
-        List<DefaultChannelFactory.ConnectionInfo> openConnections;
-        int attempts = 0;
-        do {
-            openConnections = channelFactory.getOpenConnections();
-            for (DefaultChannelFactory.ConnectionInfo connection : openConnections) {
-                log.errorWithParams("Found open connection", "connection", connection);
-                Thread.sleep(1000);
-            }
-            attempts++;
-        } while (openConnections.size()>0 && attempts<10);
-        log.infoWithParams("Checked open connections", "connections", openConnections);
-
-        if (openConnections.size()>0){
-            log.errorWithParams("There are open connections left on the broker. Restarting the broker to flush them out ...");
-            dockerContainers.resetAll(false);
-            log.infoWithParams("Broker successfully re-started");
-        }
-
-        assertThat("Too many open connections.", openConnections.size(), is(0));
-
+        waitForAllConnectionsToClose(channelFactory, dockerContainers);
     }
 
     //TODO tests to add
@@ -243,10 +208,10 @@ public class RxRabbitTests {
         Subscription s = consumerFactory
                 .createConsumer(inputExchange, "#")
                 .subscribe();
-        waitForNumQueuesToBePresent(2);
+        waitForNumQueuesToBePresent(2, httpClient, rabbitAdminPort);
         assertEquals(getQueueNames().size(), 2);
         s.unsubscribe();
-        waitForNumQueuesToBePresent(1);
+        waitForNumQueuesToBePresent(1, httpClient, rabbitAdminPort);
         assertEquals(getQueueNames().size(), 1);
     }
 
@@ -259,7 +224,7 @@ public class RxRabbitTests {
                     message.acknowledger.ack();
                 })
                 .subscribe();
-        waitForNumQueuesToBePresent(2);
+        waitForNumQueuesToBePresent(2, httpClient, rabbitAdminPort);
         assertEquals(getQueueNames().size(), 2);
 
         int nrMessages = 25_000;
@@ -269,7 +234,7 @@ public class RxRabbitTests {
         List<String> connectionName = getConnectionNames();
         deleteConnections(connectionName);
 
-        waitForNumQueuesToBePresent(2);
+        waitForNumQueuesToBePresent(2, httpClient, rabbitAdminPort);
         assertEquals(getQueueNames().size(), 2);
 
         //NOTE we need to send all messages again because we can't be sure how many that got dropped while the queue was not present,
@@ -292,7 +257,7 @@ public class RxRabbitTests {
         final List<Integer> received = new ArrayList<>();
         consumerFactory
                 .createConsumer(inputExchange, "#")
-                .compose(getIdsTransformer(nrMessages))  //TODO use this pattern instead of wait for N..
+                .compose(getIdsTransformer(nrMessages))
                 .doOnNext(integers -> {
                     received.addAll(integers);
                     done.set(true);
@@ -301,7 +266,7 @@ public class RxRabbitTests {
         Thread.sleep(5_000); //wait 5 secs before starting the broker
         log.infoWithParams("Starting up the rabbitMQ broker");
         dockerContainers.rabbit().start().assertUp();
-        waitForNumQueuesToBePresent(2);
+        waitForNumQueuesToBePresent(2, httpClient, rabbitAdminPort);
         sendNMessages(nrMessages, publisher);
         while (!done.get()){
             Thread.sleep(10);
@@ -359,7 +324,7 @@ public class RxRabbitTests {
                                 throw new RuntimeException("Queue was not deleted");
                             }
                             log.infoWithParams("Queue was successfully deleted. Re-creating queue");
-                            declareAndBindQueue(adminChannel);
+                            declareAndBindQueue(adminChannel, inputQueue, new Exchange(inputExchange));
                             log.infoWithParams("Sending messages to queue");
                             sendNMessagesAsync(nrMessages,0,publisher).subscribe();
                         }catch(Exception e){
@@ -474,7 +439,7 @@ public class RxRabbitTests {
         publisher3.close();
         AdminChannel channel = channelFactory.createAdminChannel();
         deleteQueue(inputQueue, channel);
-        declareAndBindQueue(channel);
+        declareAndBindQueue(channel, inputQueue, new Exchange(inputExchange));
         channel.close();
 
         assertThat(res.size(), equalTo(nrMessages * 3));
@@ -502,6 +467,7 @@ public class RxRabbitTests {
         assertEquals(messagesSeen, new TreeSet<>(Collections2.transform(sentMsgs, input -> input.id)));
         assertThat(messagesSeen.size(), equalTo(nrMessages));
     }
+
 
 
     @Test
@@ -744,6 +710,8 @@ public class RxRabbitTests {
         assertThat(deliveryTags.size(), is(nrMessages + prefetchCount));
     }
 
+
+
     @Test
     public void can_close_consumer_without_losing_messages() throws Exception {
         final int nrMessages = 1_000;
@@ -799,6 +767,9 @@ public class RxRabbitTests {
                     }
                     @Override
                     public void onNext(String s) {
+                        if (s==null) {
+                            log.errorWithParams("Found null message", "messagesSeen", messagesSeen.size());
+                        }
                         messagesSeen.add(Integer.valueOf(s));
                         if (messagesSeen.size() == nrMessages) {
                             sub.get().unsubscribe();
@@ -910,55 +881,6 @@ public class RxRabbitTests {
         return consumers;
     }
 
-    private List<String> getQueueNames() throws Exception{
-        final Response response = httpClient
-                .prepareGet("http://localhost:" + rabbitAdminPort + "/api/queues")
-                .setRealm(realm)
-                .execute().get();
-        ObjectMapper mapper = new ObjectMapper();
-        List<String> queues = new ArrayList<>();
-        final List<Map<String,Object>> list = mapper.readValue(response.getResponseBody(), List.class);
-        for(Map<String,Object> entry : list){
-            queues.add(entry.get("name").toString());
-        }
-        return queues;
-    }
-
-    //TODO add more metadata for the connections so we can identify them when they should not be there..
-    private List<String> getConnectionNames() throws Exception {
-        final Response response = httpClient
-                .prepareGet("http://localhost:" + rabbitAdminPort + "/api/connections")
-                .setRealm(realm)
-                .execute().get();
-        ObjectMapper mapper = new ObjectMapper();
-        List<String> connections = new ArrayList<>();
-        final List<Map<String,Object>> list = mapper.readValue(response.getResponseBody(), List.class);
-        for(Map<String,Object> entry : list){
-            connections.add("[ name="+entry.get("name")+", channels="+entry.get("channels")+", connected_at="+new DateTime(entry.get("connected_at"))+"]");
-        }
-        return connections;
-    }
-
-    private void waitForNumQueuesToBePresent(int numQueues) throws Exception {
-        for (int i = 1; i <= CONNECTION_MAX_ATTEMPT; i++) {
-            try {
-                List<String> queueNames = getQueueNames();
-                if (queueNames.size()==numQueues) {
-                    log.infoWithParams("Correct number of queues found.", "numQueues", queueNames.size(), "expected", numQueues, "names", queueNames);
-                    break;
-                }else{
-                    log.infoWithParams("Wrong number of queues found.", "numQueues", queueNames.size(), "expected", numQueues, "names", queueNames);
-                    Thread.sleep(CONNECTION_BACKOFF_TIME);
-                }
-            } catch (Exception ignored) {
-                log.infoWithParams("Failed to create connection.. will try again ", "attempt", i, "max-attempts", CONNECTION_MAX_ATTEMPT);
-                Thread.sleep(CONNECTION_BACKOFF_TIME);
-                if (i == CONNECTION_MAX_ATTEMPT) {
-                    throw ignored;
-                }
-            }
-        }
-    }
 
     private void waitForNMessages(int nrMessages) {
         waitForNMessages(messagesSeen, nrMessages);
@@ -1014,18 +936,6 @@ public class RxRabbitTests {
                 .toList();
     }
 
-    public rx.Observable<Message> createConsumer() throws InterruptedException {
-        for (int i = 0; i < CONNECTION_MAX_ATTEMPT; i++) {
-            try {
-                return consumerFactory.createConsumer(inputQueue);
-            } catch (Exception e) {
-                log.errorWithParams("failed to create consumer", e);
-                Thread.sleep(CONNECTION_BACKOFF_TIME);
-            }
-
-        }
-        throw new RuntimeException("Failed to connect to Rabbit");
-    }
 
     public SortedSet<Integer> sendNMessages(int numMessages, final RabbitPublisher publisher) throws Exception {
         final SortedSet<Integer> out = new TreeSet<>(
@@ -1069,16 +979,18 @@ public class RxRabbitTests {
         return Observable.merge(sendCallbacks);
     }
 
-
-    public void declareQueueAndExchange(AdminChannel sendChannel) throws IOException {
-        sendChannel.exchangeDeclare(inputExchange, "topic", true, false, false, new HashMap<>());
-        declareAndBindQueue(sendChannel);
+    private List<String> getQueueNames() throws Exception {
+        return RabbitTestUtils.getQueueNames(httpClient, rabbitAdminPort);
     }
 
-    private void declareAndBindQueue(AdminChannel sendChannel) throws IOException {
-        sendChannel.queueDeclare(inputQueue, true, false, false, new HashMap<>());
-        sendChannel.queueBind(inputQueue, inputExchange, "#", new HashMap<>());
+    private Observable<Message> createConsumer() throws InterruptedException {
+        return RabbitTestUtils.createConsumer(consumerFactory, inputQueue);
     }
+
+    private List<String> getConnectionNames() throws Exception {
+        return RabbitTestUtils.getConnectionNames(httpClient, rabbitAdminPort);
+    }
+
 
     private ChannelFactory getDroppingAndExceptionThrowingChannelFactory(final int dropAtMessageN, final int exceptionAtMessageN) {
         return new ChannelFactory() {

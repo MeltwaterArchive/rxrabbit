@@ -13,6 +13,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static com.meltwater.rxrabbit.util.LogFiltering.filterStackTrace;
+
 /**
  * Can create {@link Observable}s that streams the messages delivered to the connected rabbit queue.
  *
@@ -59,31 +61,28 @@ public class DefaultConsumerFactory implements ConsumerFactory {
     @Override
     public Observable<Message> createConsumer(final String exchange, final String routingKey) {
         final ConnectionRetryHandler retryHandler = new ConnectionRetryHandler(settings.getBackoff_algorithm(), settings.getRetry_count());
-        return Observable.create(new Observable.OnSubscribe<Message>() {
-            @Override
-            public void call(Subscriber<? super Message> subscriber) {
-                try {
-                    final ConsumeChannel setupChannel = channelFactory.createConsumeChannel(exchange,routingKey);
-                    final AtomicBoolean setupChannelClosed = new AtomicBoolean(false);
-                    //Note we are setting re-try to 0 here so we get errors immediately and
-                    //can re-create the queue+binding before re-connecting the consumer
-                    createConsumer(setupChannel.getQueue(), 0)
-                            //we can not close the 'temp' channel before we are sure that the consumer has created
-                            //a channel otherwise the connection will be closed and the temp queue removed
-                            .doOnNext(message -> {
-                                if (!setupChannelClosed.get()){
-                                    setupChannelClosed.set(true);
-                                    setupChannel.close();
-                                }
-                            })
-                            .doOnUnsubscribe(setupChannel::close)
-                            .doOnError(throwable -> setupChannel.closeWithError())
-                            .subscribe(subscriber);
-                }catch (Exception e){
-                    log.errorWithParams("Unexpected error when registering the rabbit consumer on the broker.",
-                            "error", e);
-                    subscriber.onError(e);
-                }
+        return Observable.create((Observable.OnSubscribe<Message>) subscriber -> {
+            try {
+                final ConsumeChannel setupChannel = channelFactory.createConsumeChannel(exchange,routingKey);
+                final AtomicBoolean setupChannelClosed = new AtomicBoolean(false);
+                //Note we are setting re-try to 0 here so we get errors immediately and
+                //can re-create the queue+binding before re-connecting the consumer
+                createConsumer(setupChannel.getQueue(), 0)
+                        //we can not close the 'temp' channel before we are sure that the consumer has created
+                        //a channel otherwise the connection will be closed and the temp queue removed
+                        .doOnNext(message -> {
+                            if (!setupChannelClosed.get()){
+                                setupChannelClosed.set(true);
+                                setupChannel.close();
+                            }
+                        })
+                        .doOnUnsubscribe(setupChannel::close)
+                        .doOnError(throwable -> setupChannel.closeWithError())
+                        .subscribe(subscriber);
+            }catch (Exception e){
+                //TODO better error msg here!! not just a stack trace!
+                log.errorWithParams("Unexpected error when registering the rabbit consumer on the broker.", filterStackTrace(e));
+                subscriber.onError(e);
             }
         })
                 .retryWhen(retryHandler);

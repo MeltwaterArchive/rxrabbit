@@ -57,7 +57,7 @@ import static org.junit.Assert.assertTrue;
 
 public class RxRabbitTests {
 
-    private final int TIMEOUT = 100_000;
+    private final int TIMEOUT = 50_000;
 
     @Rule
     public RepeatRule repeatRule = new RepeatRule();

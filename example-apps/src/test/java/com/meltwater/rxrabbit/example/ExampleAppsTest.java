@@ -81,15 +81,16 @@ public class ExampleAppsTest {
                 new ConnectionSettings(),
                 broker
         );
-        exampleApp.start();
+        try{
+            exampleApp.start();
+            int nrToPublish = 5_000;
+            LoadGenerator.publishTestMessages(broker, prop.getProperty("publish.to.exchange"), nrToPublish);
 
-        int nrToPublish = 5_000;
-        LoadGenerator.publishTestMessages(broker, prop.getProperty("publish.to.exchange"), nrToPublish);
-
-        Set<String> idSet = consumeDocumentsAndGetIds(nrToPublish);
-        assertThat(idSet.size(), is(nrToPublish));
-
-        exampleApp.stop();
+            Set<String> idSet = consumeDocumentsAndGetIds(nrToPublish);
+            assertThat(idSet.size(), is(nrToPublish));
+        } finally {
+            exampleApp.stop();
+        }
     }
 
     private Set<String> consumeDocumentsAndGetIds(int nrToPublish) throws InterruptedException {

@@ -229,8 +229,7 @@ public class DefaultChannelFactory implements ChannelFactory {
                 }
                 break;
             } catch (Exception e) {
-                log.errorWithParams("Failed to createConnection to broker",
-                        e,
+                log.debugWithParams("Failed to createConnection to broker",
                         "address", address.toString());
                 lastException = e;
             }

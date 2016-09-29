@@ -40,7 +40,7 @@ bindings:
         routing_key: "#"
         arguments: {}
     test.in.dl@/:
-      - destination: test-in-deadletter
+      - destination: test-in-dl
         destination_type: queue
         routing_key: "#"
         arguments: {}

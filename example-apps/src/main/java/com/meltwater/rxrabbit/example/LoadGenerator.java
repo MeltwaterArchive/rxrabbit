@@ -13,6 +13,7 @@ import com.meltwater.rxrabbit.PublisherSettings;
 import com.meltwater.rxrabbit.RabbitPublisher;
 import com.meltwater.rxrabbit.RoutingKey;
 import com.meltwater.rxrabbit.impl.DefaultChannelFactory;
+import com.meltwater.rxrabbit.util.FibonacciBackoffAlgorithm;
 import com.meltwater.rxrabbit.util.Logger;
 import com.rabbitmq.client.AMQP;
 
@@ -24,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 
 import static rx.Observable.from;
 
+//TODO add publish listener!!
 public class LoadGenerator {
 
     private static final Logger log = new Logger(LoadGenerator.class);
@@ -41,7 +43,13 @@ public class LoadGenerator {
 
     public static void publishTestMessages(BrokerAddresses addresses, String outputExchange, long nrToPublish) throws IOException {
         ConnectionSettings connectionSettings = new ConnectionSettings();
+        connectionSettings.withHeartbeatSecs(5);
+        connectionSettings.withShutdownTimeoutMillis(10_000);
+
         PublisherSettings publisherSettings = new PublisherSettings();
+        publisherSettings.withPublisherConfirms(true);
+        publisherSettings.withBackoffAlgorithm(new FibonacciBackoffAlgorithm());
+        publisherSettings.withRetryCount(10);
 
         ChannelFactory channelFactory = new DefaultChannelFactory(addresses, connectionSettings);
         PublisherFactory publisherFactory = new DefaultPublisherFactory(channelFactory, publisherSettings);

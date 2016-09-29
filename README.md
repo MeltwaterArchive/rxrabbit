@@ -1,117 +1,84 @@
-# RxRabbit: Reactive RabbitMQ client for Java
-Highly available, reactive RabbitMQ client for the JVM.
+# RxRabbit
 
-### Reactive API
 RxRabbit is a [RabbitMQ](https://www.rabbitmq.com/) java 8 client library that extends and enhances the [rabbitmq-java-client](https://www.rabbitmq.com/java-client.html) by providing a resilient, auto-connecting [ReactiveX](http://reactivex.io/) styled API.
 
-Consuming messages from an AMQP queue is by its nature a reactive flow, and therefore RxRabbit exposes consumed messages as an [rx.Observable](http://reactivex.io/documentation/observable.html) which can be subscribed to.
+## Highlights
 
-Publishing messages is modeled as a rx.functions.Func4 that returns an [rx.Single](http://reactivex.io/documentation/single.html) when its done.
+- Simple, reactive API based on [RxJava](https://github.com/ReactiveX/RxJava) that fits the RabbitMQ model.
+- Automatic [error handling](#error-handling-&-recovery) and recovery that 'just works', both for publishing and consuming.
 
-### Robust and simple error handling with recovery
-The [official rabbitmq Java client](https://github.com/rabbitmq/rabbitmq-java-client) provides some basic but non-complete error handling and recovery mechanisms. 
-A number of wrapper libraries already exists today which, with varying success, automatically handles connection recovery in more error scenarios than the official java client.
-The best ones we have found so far were [Spring-amqp](http://projects.spring.io/spring-amqp/) which we we discovered suffered from excessive and erroneous channel handling and
-[lyra](https://github.com/jhalterman/lyra) which, in our view, implements and overly complex error handling logic that still has issues with recovering from some extreme error cases, such as hard broker restarts.
+## Getting started
 
-RxRabbit instead uses a very basic but effective approach when it comes to error handling and recovery:
+Have a look at the [RxRabbit Tutorial](example-apps) to get a feel for how to use the API in a real application.
 
-**No matter the error, the code assumes that the connection is broken and starts to repeatedly attempt to re-connect to the broker with exponential back-off.**
+You can also look at the [integration tests](rxrabbit/src/test/groovy/com/meltwater/rxrabbit/RxRabbitTests.java) and the [ExampleCode class](rxrabbit/src/test/java/com/meltwater/rxrabbit/example/ExampleCode.java).
 
-Consumers and producers do not have to care about underlying rabbit channels and connections as reconnects will remain hidden from the API user unless specifically asked for.
+The javadoc of the core API classes and interfaces is also a good source of reference.
+
+
+## Download dependencies
+
+*Gradle:*
+
+```groovy    
+    compile 'com.meltwater:rxrabbit:$RXRABBIT_VERSION'   
+```
+       
+*Maven:*
+
+```xml  
+    <dependency>
+        <groupId>com.meltwater</groupId>
+        <artifactId>rxrabbit</artifactId>
+        <version>$RXRABBIT_VERSION</version>
+        <type>jar</type>
+    </dependency>
+```
+
+**NOTE** the rxrabbit binaries is currently hosted on [jcenter](https://bintray.com/bintray/jcenter).
+
+## Design Philosophy
 
 ### Opinionated API
-The API has strong opinions on how RabbitMQ should be used. It hides a lot of functionality from the Channel interface and also introduces a concept of **channel types** that are made for a specific purpose (such as publish, consume or admin operations). This means of course that there are several things that you can't do with this api, but keep in mind that it is a conscious decision made by the API developers.
+The API has strong opinions on how RabbitMQ should be used. It hides a lot of functionality from the Channel interface and also introduces a concept of **channel types** that are made for a specific purpose (such as publish, consume or admin operations). 
+This means of course that there are several things that you can't do with this api, but keep in mind that it is a conscious decision made by the API developers.
 
-Main supported use cases:
+Main supported use cases by rxrabbit:
 
 - Continuously 'infinite' consume (with manual acknowledgment) from an already existing queue on the rabbit broker.
 - Continuously 'infinite' consume (with manual acknowledgment) from a server created, temporary, exclusive queue bound to an existing exchange on the rabbit broker.
 - Publish messages to an exchange with (or without) publisher confirmation but with mandatory=false and immediate=false.
 - Perform basic 'admin' operations (declare, remove and purge queues, exchanges and bindings)
 
+### Error handling and recovery
+The [official rabbitmq Java client](https://github.com/rabbitmq/rabbitmq-java-client) provides some basic but non-complete error handling and recovery mechanisms. 
+A number of wrapper libraries already exists today which, with varying success, automatically handles connection recovery in more error scenarios than the official java client.
+The best ones we have found so far were [Spring-amqp](http://projects.spring.io/spring-amqp/) which we discovered suffered from excessive and erroneous channel handling, and
+[lyra](https://github.com/jhalterman/lyra) which, in our view, implements and overly complex error handling logic that still has issues with recovering from some extreme error cases, such as hard broker restarts.
 
-## How to use it
+RxRabbit instead uses a very basic but effective approach when it comes to error handling and recovery:
 
-### Dependencies
+**No matter the error, the code assumes that the connection is broken then  attempts to re-connect to the broker with exponential back-off**
 
-*Gradle:*
+The goal we have is that consumers and producers should not have to care about the underlying rabbit channels and connections. Re-connects should remain hidden from the API user unless specifically asked for (currently achieved by adding listeners).
 
-```groovy
-    
-repositories {
-   jcenter()
-}
-...
+## Building locally
 
-dependencies {
-    compile 'com.meltwater:rxrabbit:<insert-version>'
-    ...
-}
-```
-       
-*Maven:*
+**Pre-requisites**
+ - [JDK8](http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html)
+ - [docker](https://docs.docker.com/)  (version 1.9 or later)
+ - [docker-compose](https://docs.docker.com/compose/)  (version 1.6 or later)
 
-```xml  
-<repositories>
-   <repository>
-      <id>jcenter</id>
-      <url>http://jcenter.bintray.com</url>
-      <snapshots>
-        <enabled>true</enabled>
-        <updatePolicy>never</updatePolicy>
-        <checksumPolicy>warn</checksumPolicy>
-      </snapshots>
-       <releases>
-         <enabled>true</enabled>
-         <checksumPolicy>warn</checksumPolicy>
-      </releases>
-   </repository>
-   ...
-</repositories>
-...
+Build (including running the tests) by running 
 
-<dependency>
-  <groupId>com.meltwater</groupId>
-  <artifactId>rxrabbit</artifactId>
-  <version><insert-version></version>
-  <type>jar</type>
-  ...
-</dependency>
-```
+    ./gradlew clean build
 
-### Code examples
+Also note that it is *currently NOT supported to run the test on OSX* using *docker machine*, you need to be able to connect to docker containers using localhost:<port>.
 
-The best way to get a feel for how the API should be used have a look at the [example-apps](example-apps).
+## How to contribute
 
-It is also useful to look at the [integration tests](rxrabbit/src/test/groovy/com/meltwater/rxrabbit/RxRabbitTests.java) and the [ExampleCode class](rxrabbit/src/test/java/com/meltwater/rxrabbit/example/ExampleCode.java) class.
+We happily accept contributions in the form of [Github PRs](https://help.github.com/articles/about-pull-requests/) 
+or in the form of bug reports, comments/suggestions or usage questions by creating a [github issue](https://github.com/meltwater/rxrabbit/issues).
 
-You can of course also have a look at the javadoc as most core API classes and interfaces are reasonably well documented.
-
-### Build and run tests
-
-Build by running `./gradlew clean build`.
-
-Note that the build will use [docker](https://www.docker.com/) when running the tests, so you need to have docker v1.8 or later installed for the build to succeed.
-
-Also note that it is currently NOT supported to run the test on OSX using docker machine, you need to be able to connect to docker containers using localhost:<port>.
-
-## RxRabbit example apps
-
-The [example-apps](example-apps) module contains example main classes that can useful to look at as a starting point for other developers.
-
-[ExampleAppShovel](example-apps/src/main/java/com/meltwater/rxrabbit/example/ExampleAppShovel.java) - Consumes messages from one queue and publishes the messages to another queue
-[LoadGenerator](example-apps/src/main/java/com/meltwater/rxrabbit/example/LoadGenerator.java) - Generates and publishes messages
-
-
-### Run shovel example app
-Start up RabbitMQ and create the right exchanges & queues:
-
-    docker-compose up
-
-Run the LoadGenerator and the Shovel in parallel using gradle.
- 
-    ./gradlew example-apps:runLoadGenerator example-apps:runShovel -Dpublish.message.count=5000 --parallel
-    
-
-
+## License
+MIT

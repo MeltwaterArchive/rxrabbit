@@ -16,14 +16,6 @@ dependencies {
     compile "org.slf4j:slf4j-api:1.7.12"
 
     testCompile project(':test-utils')
-
-    testCompile 'junit:junit:4.11'
-    testCompile 'joda-time:joda-time:2.1'
-    testCompile 'io.netty:netty:3.10.5.Final'
-    testCompile 'com.ning:async-http-client:1.9.31'
-    testCompile "com.fasterxml.jackson.core:jackson-core:2.7.2"
-    testCompile "com.fasterxml.jackson.core:jackson-databind:2.7.2"
-
     testCompile 'ch.qos.logback:logback-classic:1.1.7'
     testCompile 'org.spockframework:spock-core:1.0-groovy-2.4'
 }

@@ -1,31 +1,23 @@
 package com.meltwater.rxrabbit.example;
 
 
-import com.meltwater.rxrabbit.AdminChannel;
 import com.meltwater.rxrabbit.BrokerAddresses;
-import com.meltwater.rxrabbit.ChannelFactory;
 import com.meltwater.rxrabbit.ConnectionSettings;
 import com.meltwater.rxrabbit.ConsumerFactory;
 import com.meltwater.rxrabbit.ConsumerSettings;
 import com.meltwater.rxrabbit.DefaultConsumerFactory;
 import com.meltwater.rxrabbit.Exchange;
-import com.meltwater.rxrabbit.Message;
+import com.meltwater.rxrabbit.RabbitTestUtils;
 import com.meltwater.rxrabbit.docker.DockerContainers;
 import com.meltwater.rxrabbit.impl.DefaultChannelFactory;
 import com.meltwater.rxrabbit.util.Logger;
-import org.hamcrest.Matchers;
-import org.joda.time.DateTime;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.SortedSet;
@@ -38,10 +30,7 @@ import static org.junit.Assert.assertThat;
 public class ExampleAppsTest {
 
     private static final Logger log = new Logger(ExampleAppsTest.class);
-    private static final DockerContainers testContainers = new DockerContainers(ExampleAppsTest.class);
-
-    private static final int CONNECTION_BACKOFF_TIME = 500;
-    private static final int CONNECTION_MAX_ATTEMPT = 20;
+    private static final DockerContainers dockerContainers = new DockerContainers(ExampleAppsTest.class);
 
     static BrokerAddresses addresses;
     static DefaultChannelFactory channelFactory;
@@ -57,29 +46,18 @@ public class ExampleAppsTest {
 
         addresses = new BrokerAddresses(prop.getProperty("rabbit.broker.uris"));
         channelFactory = new DefaultChannelFactory(addresses, new ConnectionSettings());
-        createQueues(channelFactory,prop.getProperty("in.queue"),new Exchange(prop.getProperty("in.exchange")));
-        createQueues(channelFactory,prop.getProperty("out.queue"),new Exchange(prop.getProperty("out.exchange")));
+        RabbitTestUtils.createQueues(channelFactory, prop.getProperty("in.queue"), new Exchange(prop.getProperty("in.exchange")));
+        RabbitTestUtils.createQueues(channelFactory, prop.getProperty("out.queue"), new Exchange(prop.getProperty("out.exchange")));
     }
 
     @AfterClass
     public static void teardownSpec(){
-        testContainers.cleanup();
+        dockerContainers.cleanup();
     }
 
     @After
     public void cleanUp() throws InterruptedException {
-        List<DefaultChannelFactory.ConnectionInfo> openConnections;
-        int attempts = 0;
-        do {
-            openConnections = channelFactory.getOpenConnections();
-            for (DefaultChannelFactory.ConnectionInfo connection : openConnections) {
-                log.errorWithParams("Found open connection", "connection", connection);
-                Thread.sleep(500);
-            }
-            attempts++;
-        } while (openConnections.size()>0 && attempts< CONNECTION_MAX_ATTEMPT);
-        log.infoWithParams("Checked open connections", "connections", openConnections);
-        assertThat(openConnections.size(), Matchers.is(0));
+        RabbitTestUtils.waitForAllConnectionsToClose(channelFactory, dockerContainers);
     }
 
     @Test
@@ -119,37 +97,10 @@ public class ExampleAppsTest {
     }
 
     private static void killAndRestartRabbitDocker() throws Exception {
-        testContainers.resetAll(false);
-        testContainers.rabbit().assertUp();
-        String rabbitTcpPort = testContainers.rabbit().tcpPort();
+        dockerContainers.resetAll(false);
+        dockerContainers.rabbit().assertUp();
+        String rabbitTcpPort = dockerContainers.rabbit().tcpPort();
         System.setProperty("rabbit.broker.uris", "amqp://guest:guest@localhost:" + rabbitTcpPort);
     }
 
-    public static void createQueues(ChannelFactory channelFactory, String inputQueue, Exchange inputExchange) throws Exception {
-        AdminChannel adminChannel;
-        for (int i = 1; i <= CONNECTION_MAX_ATTEMPT; i++) {
-            try {
-                adminChannel = channelFactory.createAdminChannel();
-                adminChannel.queueDelete(inputQueue, false, false);
-                declareQueueAndExchange(adminChannel, inputQueue, inputExchange);
-                adminChannel.closeWithError();
-                break;
-            } catch (Exception ignored) {
-                log.infoWithParams("Failed to create connection.. will try again ", "attempt", i, "max-attempts", CONNECTION_MAX_ATTEMPT);
-                Thread.sleep(CONNECTION_BACKOFF_TIME);
-                if(i==CONNECTION_MAX_ATTEMPT) throw ignored;
-            }
-        }
-    }
-
-
-    public static void declareQueueAndExchange(AdminChannel sendChannel, String inputQueue, Exchange inputExchange) throws IOException {
-        sendChannel.exchangeDeclare(inputExchange.name, "topic", true, false, false, new HashMap<>());
-        declareAndBindQueue(sendChannel, inputQueue, inputExchange);
-    }
-
-    public static void declareAndBindQueue(AdminChannel sendChannel, String inputQueue, Exchange inputExchange) throws IOException {
-        sendChannel.queueDeclare(inputQueue, true, false, false, new HashMap<>());
-        sendChannel.queueBind(inputQueue, inputExchange.name, "#", new HashMap<>());
-    }
 }

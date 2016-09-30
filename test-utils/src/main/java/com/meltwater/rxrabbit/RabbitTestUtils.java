@@ -136,6 +136,20 @@ public class RabbitTestUtils {
         return connections;
     }
 
+    public static int countConsumers(AsyncHttpClient httpClient, String rabbitAdminPort) throws Exception {
+        final Response response = httpClient
+                .prepareGet("http://localhost:" + rabbitAdminPort + "/api/channels")
+                .setRealm(realm)
+                .execute().get();
+        ObjectMapper mapper = new ObjectMapper();
+        int consumers = 0;
+        final List<Map<String,Object>> list = mapper.readValue(response.getResponseBody(), List.class);
+        for(Map<String,Object> entry : list){
+            consumers+= (Integer)entry.get("consumer_count");
+        }
+        return consumers;
+    }
+
     public static void declareQueueAndExchange(AdminChannel sendChannel, String inputQueue, Exchange inputExchange) throws IOException {
         sendChannel.exchangeDeclare(inputExchange.name, "topic", true, false, false, new HashMap<>());
         declareAndBindQueue(sendChannel, inputQueue, inputExchange);

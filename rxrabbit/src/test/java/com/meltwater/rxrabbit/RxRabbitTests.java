@@ -374,6 +374,10 @@ public class RxRabbitTests {
         }
     }
 
+    private int countConsumers() throws Exception {
+        return RabbitTestUtils.countConsumers(httpClient, rabbitAdminPort);
+    }
+
     @Test
     public void consumer_recovers_from_connection_shutdown() throws Exception {
         int nrMessages = 25_000;
@@ -900,20 +904,6 @@ public class RxRabbitTests {
                     .execute().get();
             //TODO we need something like this, but not safe to crash other threads than main assertThat(deleteResponse.getStatusCode(), equalTo(204));
         }
-    }
-
-    private int countConsumers() throws Exception {
-        final Response response = httpClient
-                .prepareGet("http://localhost:" + rabbitAdminPort + "/api/channels")
-                .setRealm(realm)
-                .execute().get();
-        ObjectMapper mapper = new ObjectMapper();
-        int consumers = 0;
-        final List<Map<String,Object>> list = mapper.readValue(response.getResponseBody(), List.class);
-        for(Map<String,Object> entry : list){
-            consumers+= (Integer)entry.get("consumer_count");
-        }
-        return consumers;
     }
 
 

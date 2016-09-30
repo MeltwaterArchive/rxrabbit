@@ -12,6 +12,7 @@ import com.ning.http.client.AsyncHttpClient;
 import com.ning.http.client.Response;
 import com.rabbitmq.client.AMQP;
 import com.rabbitmq.client.ConfirmListener;
+import org.jetbrains.annotations.NotNull;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -41,6 +42,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static com.meltwater.rxrabbit.RabbitTestUtils.createQueues;
@@ -521,7 +523,8 @@ public class RxRabbitTests {
         int nrMessages = 1_000;
         sendNMessagesAsync(nrMessages, 0, publisher).toList().toBlocking().last();
 
-        final Observable<Message> consumer = createConsumer();
+        final CollectingConsumeEventListener listener = getCollectingConsumeEventListener();
+        final Observable<Message> consumer = RabbitTestUtils.createConsumer(new DefaultConsumerFactory(channelFactory, consumeSettings).setConsumeEventListener(listener), inputQueue);
         final Set<Integer> uniqueMessages = new HashSet<>();
         final List<Message> seenMessages = new ArrayList<>();
 
@@ -543,9 +546,17 @@ public class RxRabbitTests {
                                         m.acknowledger.reject();
                                     }
                                 }
+                                Thread.sleep(100);
+                                log.infoWithParams("After acking status.",
+                                        "seenMessages", seenMessages.size(),
+                                        "acked", listener.acked.size(),
+                                        "nacked", listener.nacked.size(),
+                                        "failedAckNack", listener.failedAckNack.size(),
+                                        "ignoredAckNack", listener.ignoredAckNack.size()
+                                );
                                 dockerContainers.up();
                             } catch (Exception e) {
-                                log.errorWithParams("TODO this should NEVER happen. (but it can :()", e);
+                                log.errorWithParams("WARNING This should NEVER happen. (but it can :()", e);
                             }
                         } else if (seenMessages.size() > prefetchCount) {
                             message.acknowledger.ack();
@@ -565,12 +576,29 @@ public class RxRabbitTests {
         while(uniqueMessages.size() < nrMessages){ //TODO timeout?
             synchronized (seenMessages){
                 seenMessages.wait(100);
+                if (System.currentTimeMillis()%100 == 0) {
+                    log.infoWithParams("Current state.",
+                            "seenMessages", seenMessages.size(),
+                            "acked", listener.acked.size(),
+                            "nacked", listener.nacked.size(),
+                            "failedAckNack", listener.failedAckNack.size(),
+                            "ignoredAckNack", listener.ignoredAckNack.size()
+                    );
+                }
             }
         }
+        log.infoWithParams("Current state.",
+                "seenMessages", seenMessages.size(),
+                "acked", listener.acked.size(),
+                "nacked", listener.nacked.size(),
+                "failedAckNack", listener.failedAckNack.size(),
+                "ignoredAckNack", listener.ignoredAckNack.size()
+        );
 
         subscribe.unsubscribe();
         assertThat(uniqueMessages.size(), is(nrMessages));
     }
+
 
     @Test
     public void can_handle_publish_confirms_after_connection_error() throws IOException {
@@ -1074,6 +1102,59 @@ public class RxRabbitTests {
                 return null;
             }
         };
+    }
+
+    @NotNull
+    private CollectingConsumeEventListener getCollectingConsumeEventListener() {
+        return new CollectingConsumeEventListener();
+    }
+
+    static class CollectingConsumeEventListener implements ConsumeEventListener {
+        AtomicLong unacked = new AtomicLong();
+        List<Message> acked = Collections.synchronizedList(new ArrayList<>());
+        List<Message> nacked = Collections.synchronizedList(new ArrayList<>());
+        List<Message> failedAckNack = Collections.synchronizedList(new ArrayList<>());
+        List<Message> ignoredAckNack = Collections.synchronizedList(new ArrayList<>());
+
+        @Override
+        public void received(Message message, long unAckedMessages) {
+            unacked.set(unAckedMessages);
+        }
+
+        @Override
+        public void beforeAck(Message message) {
+            acked.add(message);
+        }
+
+        @Override
+        public void beforeNack(Message message) {
+            nacked.add(message);
+        }
+
+        @Override
+        public void ignoredAck(Message message) {
+            ignoredAckNack.add(message);
+        }
+
+        @Override
+        public void ignoredNack(Message message) {
+            ignoredAckNack.add(message);
+        }
+
+        @Override
+        public void afterFailedAck(Message message, Exception error, boolean channelIsOpen) {
+            failedAckNack.add(message);
+        }
+
+        @Override
+        public void afterFailedNack(Message message, Exception error, boolean channelIsOpen) {
+            failedAckNack.add(message);
+        }
+
+        @Override
+        public void done(Message message, long unAckedMessages, long ackStartTimestamp, long processingStartTimestamp) {
+            unacked.set(unAckedMessages);
+        }
     }
 
     static class PublishedMessage implements Comparable<PublishedMessage>{

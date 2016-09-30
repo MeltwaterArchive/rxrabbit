@@ -781,7 +781,13 @@ public class RxRabbitTests {
         sub.set(consumer
                 .map(consumedMessage -> {
                     consumedMessage.acknowledger.ack();
-                    return consumedMessage.basicProperties.getMessageId();
+                    String messageId = consumedMessage.basicProperties.getMessageId();
+                    if(messageId == null){
+                        log.errorWithParams("Found null message",
+                                "properties",
+                                consumedMessage.basicProperties.toString());
+                    }
+                    return messageId;
                 })
                 .subscribeOn(Schedulers.computation())
                 .subscribe(new Subscriber<String>() {
@@ -797,6 +803,7 @@ public class RxRabbitTests {
                     public void onNext(String s) {
                         if (s==null) {
                             log.errorWithParams("Found null message", "messagesSeen", messagesSeen.size());
+                            return;
                         }
                         messagesSeen.add(Integer.valueOf(s));
                         if (messagesSeen.size() == nrMessages) {

@@ -62,8 +62,7 @@ public class RxRabbitMultiNodeTest {
 
     @Rule
     public RepeatRule repeatRule = new RepeatRule();
-    @Rule
-    public HandleFailuresRule dockerOnFailRule = new HandleFailuresRule(dockerContainers);
+
     @Rule
     public Timeout globalTimeout = Timeout.builder()
             .withTimeout(TIMEOUT, TimeUnit.MILLISECONDS)

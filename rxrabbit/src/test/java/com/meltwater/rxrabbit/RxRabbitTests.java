@@ -62,7 +62,7 @@ import static org.junit.Assert.assertTrue;
 
 public class RxRabbitTests {
 
-    private final int TIMEOUT = 30_000;
+    private final int TIMEOUT = 100_000;
 
     private static final Logger log = new Logger(RxRabbitTests.class);
 

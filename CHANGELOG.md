@@ -1,7 +1,7 @@
 #RxRabbit Release Notes
-## next
+## 0.101.0 - 2016-10-03
 ### Changes
-- No changes
+- Build system changes
 
 ## 0.100.0 - 2016-10-03
 ### Changes

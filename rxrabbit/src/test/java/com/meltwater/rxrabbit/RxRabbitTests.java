@@ -1,6 +1,5 @@
 package com.meltwater.rxrabbit;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Collections2;
 import com.meltwater.rxrabbit.docker.DockerContainers;
 import com.meltwater.rxrabbit.example.ExampleCode;
@@ -12,7 +11,6 @@ import com.ning.http.client.AsyncHttpClient;
 import com.ning.http.client.Response;
 import com.rabbitmq.client.AMQP;
 import com.rabbitmq.client.ConfirmListener;
-import org.jetbrains.annotations.NotNull;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -1101,7 +1099,6 @@ public class RxRabbitTests {
         };
     }
 
-    @NotNull
     private CollectingConsumeEventListener getCollectingConsumeEventListener() {
         return new CollectingConsumeEventListener();
     }

@@ -6,7 +6,6 @@ import com.meltwater.rxrabbit.impl.SingleChannelConsumer;
 import com.meltwater.rxrabbit.util.Logger;
 import rx.Observable;
 import rx.Scheduler;
-import rx.Subscriber;
 import rx.schedulers.Schedulers;
 
 import java.util.ArrayList;

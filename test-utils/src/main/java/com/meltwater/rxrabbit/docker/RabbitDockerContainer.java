@@ -2,7 +2,6 @@ package com.meltwater.rxrabbit.docker;
 
 import com.google.common.base.Stopwatch;
 import com.jayway.awaitility.Awaitility;
-import com.jayway.awaitility.Duration;
 import com.jayway.awaitility.core.ConditionTimeoutException;
 import com.meltwater.docker.compose.Docker;
 import com.meltwater.docker.compose.DockerCompose;

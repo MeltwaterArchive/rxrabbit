@@ -1,7 +1,5 @@
 import static java.lang.System.getenv
 
-logger.info("Project version is set to {}", project.version)
-
 apply plugin: 'java'
 apply plugin: 'groovy'
 apply plugin: 'maven'
@@ -26,11 +24,12 @@ task sourceJar(type: Jar) {
     classifier "sources"
 }
 
+
 publishing {
     publications {
         JavaArtifacts(MavenPublication) {
             from components.java
-            Artifact sourceJar
+            artifact sourceJar
             groupId project.group
             artifactId project.name
             version project.version
@@ -51,13 +50,13 @@ bintray {
     user = getenv('BINTRAY_USER')
     key = getenv('BINTRAY_KEY')
     publications = ['JavaArtifacts']
-    publish = false
+    publish = true
     pkg {
         repo = 'opensource'
-        name = 'docker-compose-java'
+        name = project.name
         userOrg = 'meltwater'
         licenses = ['MIT']
-        vcsUrl = 'git@github.com:meltwater/docker-compose-java.git'
+        vcsUrl = "https://github.com/meltwater/${project.name}"
         version {
             gpg{
                 sign = true

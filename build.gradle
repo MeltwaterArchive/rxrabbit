@@ -35,9 +35,6 @@ subprojects {
 
 project.group = 'com.meltwater'
 
-
-logger.info("Project version is set to {}", project.version)
-
 task ('wrapper', type:Wrapper) {
     gradleVersion = '3.1'
 }

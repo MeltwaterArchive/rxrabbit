@@ -1,13 +1,5 @@
 import static java.lang.System.getenv
 
-static calcVersion(def project) {
-    if (!project.version.toString().contains("-SNAPSHOT")) {
-        return project.version + (getenv("SNAPSHOT") == null ? "" : "-SNAPSHOT")
-    }else {
-        return project.version
-    }
-}
-
 buildscript {
 
     repositories {
@@ -24,7 +16,7 @@ plugins {
 
 subprojects {
     group       = 'com.meltwater'
-    version     = calcVersion(parent.project)
+    version     = parent.project.version
 
     repositories {
         jcenter()
@@ -41,7 +33,6 @@ subprojects {
     }
 }
 
-project.version = calcVersion(project)
 project.group = 'com.meltwater'
 
 

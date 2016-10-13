@@ -1,12 +1,4 @@
 #RxRabbit Release Notes
-## next
-### Changes
-- No changes
-
-## 0.101.0 - 2016-10-03
-### Changes
-- Build system changes
-
-## 0.100.0 - 2016-10-03
+## 1.0.0 - 2016-10-13
 ### Changes
 - First open sourced public release.

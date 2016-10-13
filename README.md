@@ -2,6 +2,8 @@
 
 RxRabbit is a [RabbitMQ](https://www.rabbitmq.com/) java 8 client library that extends and enhances the [rabbitmq-java-client](https://www.rabbitmq.com/java-client.html) by providing a resilient, auto-connecting [ReactiveX](http://reactivex.io/) styled API.
 
+[ ![Download](https://api.bintray.com/packages/meltwater/opensource/rxrabbit/images/download.svg) ](https://bintray.com/meltwater/opensource/rxrabbit/_latestVersion)
+
 ## Highlights
 
 - Simple, reactive API based on [RxJava](https://github.com/ReactiveX/RxJava) that fits the RabbitMQ model.

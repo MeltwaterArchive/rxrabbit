@@ -81,4 +81,6 @@ We happily accept contributions in the form of [Github PRs](https://help.github.
 or in the form of bug reports, comments/suggestions or usage questions by creating a [github issue](https://github.com/meltwater/rxrabbit/issues).
 
 ## License
-MIT
+The MIT License (MIT)
+
+Copyright (c) 2016 Meltwater Inc. http://underthehood.meltwater.com/

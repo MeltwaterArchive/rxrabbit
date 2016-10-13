@@ -76,6 +76,6 @@ It is also possible to run both of the example apps in a single gradle command l
 
     ../gradlew runLoadGenerator runShovel -Dpublish.message.count=10000 --parallel
 
-*NOTE* if you want to adjust the log levels of the example apps edit [src/main/resources/logback.xml/rabbitcfg.yaml](src/main/resources/logback.xml)
+*NOTE* if you want to adjust the log levels of the example apps edit [src/main/resources/logback.xml](src/main/resources/logback.xml)
 
 This concludes the tutorial.

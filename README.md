@@ -82,6 +82,11 @@ Also note that it is *currently NOT supported to run the test on OSX* using *doc
 We happily accept contributions in the form of [Github PRs](https://help.github.com/articles/about-pull-requests/) 
 or in the form of bug reports, comments/suggestions or usage questions by creating a [github issue](https://github.com/meltwater/rxrabbit/issues).
 
+## Notes on project maturity
+
+This library was developed as an Meltwater internal project starting in October 2015. Over the past year it has been battle tested in production 
+by an (ever increasing) majority of our jvm based components and is now an integral part of our technology stack. 
+
 ## License
 The MIT License (MIT)
 

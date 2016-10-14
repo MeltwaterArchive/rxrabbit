@@ -7,13 +7,13 @@ RxRabbit is a [RabbitMQ](https://www.rabbitmq.com/) java 8 client library that e
 ## Highlights
 
 - Simple, reactive API based on [RxJava](https://github.com/ReactiveX/RxJava) that fits the RabbitMQ model.
-- Automatic [error handling](#error-handling-&-recovery) and recovery that 'just works', both for publishing and consuming.
+- Automatic [error handling](#error-handling-and-recovery) and recovery that 'just works', both for publishing and consuming.
 
 ## Getting started
 
 Have a look at the [RxRabbit Tutorial](example-apps) to get a feel for how to use the API in a real application.
 
-You can also look at the [integration tests](rxrabbit/src/test/groovy/com/meltwater/rxrabbit/RxRabbitTests.java) and the [ExampleCode class](rxrabbit/src/test/java/com/meltwater/rxrabbit/example/ExampleCode.java).
+You can also look at the [integration tests](rxrabbit/src/test/java/com/meltwater/rxrabbit/RxRabbitTests.java) and the [ExampleCode class](rxrabbit/src/test/java/com/meltwater/rxrabbit/example/ExampleCode.java).
 
 The javadoc of the core API classes and interfaces is also a good source of reference.
 

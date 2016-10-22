@@ -6,14 +6,14 @@ dependencies {
 
     compile 'com.meltwater.docker:kotlin-compose:1.1.0'
 
-    compile 'junit:junit:4.11'
-    compile 'joda-time:joda-time:2.1'
+    compile 'junit:junit:4.12'
+    compile 'joda-time:joda-time:2.9.4'
 
-    compile 'io.netty:netty:3.10.5.Final'
-    compile 'com.ning:async-http-client:1.9.31'
+    compile 'io.netty:netty:3.10.6.Final'
+    compile 'com.ning:async-http-client:1.9.32'
 
-    compile "com.fasterxml.jackson.core:jackson-core:2.7.2"
-    compile "com.fasterxml.jackson.core:jackson-databind:2.7.2"
+    compile "com.fasterxml.jackson.core:jackson-core:2.7.5"
+    compile "com.fasterxml.jackson.core:jackson-databind:2.7.5"
 
     compile 'com.jayway.awaitility:awaitility:1.7.0'
     compile 'com.github.kittinunf.fuel:fuel:1.1.2'

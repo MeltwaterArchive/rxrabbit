@@ -1,7 +1,7 @@
 #RxRabbit Release Notes
 ## next
 ### Changes
-- No changes
+- Upgrades rxjava, slf4j and guava dependencies.
 
 ## 1.0.0 - 2016-10-13
 ### Changes

@@ -8,10 +8,10 @@ apply plugin: 'com.jfrog.bintray'
 
 dependencies {
 
-    compile 'com.rabbitmq:amqp-client:3.5.6' //TODO upgrade to 3.6.5 (or later) upgrading failes the multi broker test :-(
-    compile 'io.reactivex:rxjava:1.2.0'
-    compile 'com.google.guava:guava:18.0'  //TODO upgrade to 19.0 ??
-    compile "org.slf4j:slf4j-api:1.7.12"
+    compile 'com.rabbitmq:amqp-client:3.5.6' //TODO upgrade to 3.6.5 (or later). Note upgrading fails the multi broker test :-(
+    compile 'io.reactivex:rxjava:1.2.1'
+    compile 'com.google.guava:guava:19.0'
+    compile "org.slf4j:slf4j-api:1.7.21"
 
     testCompile project(':test-utils')
     testCompile 'ch.qos.logback:logback-classic:1.1.7'

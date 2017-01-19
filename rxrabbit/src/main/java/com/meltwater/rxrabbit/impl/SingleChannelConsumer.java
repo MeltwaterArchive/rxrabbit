@@ -207,10 +207,21 @@ public class SingleChannelConsumer implements RabbitConsumer {
             Collection<Long> oldMessages = Collections2.filter(unackedMessages.values(),
                     createdAt -> createdAt <= System.currentTimeMillis() - UNACKED_WARNING_TIME_MS);
 
+            long leastTimestamp = Long.MAX_VALUE;
+            for (Long timestamp : oldMessages) {
+                if (timestamp < leastTimestamp) {
+                    leastTimestamp = timestamp;
+                }
+            }
+
+            long age = System.currentTimeMillis() - leastTimestamp;
+
+
             if(oldMessages.size() > 0){
                 log.warnWithParams("Long-lived un-acked messages found",
                         "nrMessages", oldMessages.size(),
-                        "olderThanMs", UNACKED_WARNING_TIME_MS);
+                        "olderThanMs", UNACKED_WARNING_TIME_MS,
+                        "oldestMs", age);
             }
         }
 

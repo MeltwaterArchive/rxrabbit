@@ -1,4 +1,8 @@
 #RxRabbit Release Notes
+## next
+### Changes
+- No changes
+
 ## 1.1.0 - 2017-01-19
 ### Changes
 - Uses amqp-client 4.0.1

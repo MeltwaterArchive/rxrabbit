@@ -1,7 +1,8 @@
 #RxRabbit Release Notes
-## next
+## 1.1.0 - 2017-01-19
 ### Changes
-- No changes
+- Uses amqp-client 4.0.1
+- Improves the long lived un acked messages log message.
 
 ## 1.0.1 - 2016-10-22
 ### Changes

@@ -296,7 +296,7 @@ public class RxRabbitTests {
                     retries.countDown();
                     return 1;
                 });
-        retries.getCount();
+
         Observable<Message> consumer = new DefaultConsumerFactory(channelFactory, consumerSettings)
                 .createConsumer("non-existent-queue");
 

@@ -32,13 +32,12 @@ import static rx.Observable.create;
 
 /**
  * A rabbit consumer that is using one {@link ConsumeChannel} and one {@link Consumer} at the time.
- *
+ * <p>
  * If any io error is encountered in the communication with RabbitMQ then the {@link ConsumeChannel} will be discarded
  * and a re-connect loop will be initiated. The re-connect loop can continue forever or stop after N attempts according to config.
- *
+ * <p>
  * The messages delivered from RabbitMQ are wrapped up into a {@link Message} object and handed over to the caller
  * on a {@link Scheduler} of your choice.
- *
  */
 public class SingleChannelConsumer implements RabbitConsumer {
 
@@ -58,15 +57,15 @@ public class SingleChannelConsumer implements RabbitConsumer {
     private final BackoffAlgorithm backoffAlgorithm;
 
     /**
-     *  @param channelFactory used to create new channels when needed
-     * @param queue the queue to consume from
-     * @param preFetchCount the rabbit preFetchCount
-     * @param tagPrefix a prefix for the consumer tag, an ever increasing integer will be appended at the end
+     * @param channelFactory       used to create new channels when needed
+     * @param queue                the queue to consume from
+     * @param preFetchCount        the rabbit preFetchCount
+     * @param tagPrefix            a prefix for the consumer tag, an ever increasing integer will be appended at the end
      * @param maxReconnectAttempts how many times to try re-connects. 0 or negative number for trying forever
-     * @param closeTimeout the max time to wait before aborting/crashing close procedures
-     * @param observeOnScheduler the scheduler that the onNext(Message) will be called on
+     * @param closeTimeout         the max time to wait before aborting/crashing close procedures
+     * @param observeOnScheduler   the scheduler that the onNext(Message) will be called on
      * @param consumeEventListener event listener that will be notified about message receive, failures and ack/nack events
-     * @param backoffAlgorithm controls the backoff timeout between connection attempts
+     * @param backoffAlgorithm     controls the backoff timeout between connection attempts
      */
     public SingleChannelConsumer(ChannelFactory channelFactory,
                                  String queue,
@@ -108,7 +107,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
                         rootCause = e;
                     }
                     log.errorWithParams("Unexpected error when registering the rabbit consumer on the broker.",
-                        "error", rootCause);
+                            "error", rootCause);
                     subscriber.onError(e);
                 }
             }
@@ -125,7 +124,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
     }
 
     private synchronized void terminate(AtomicReference<InternalConsumer> consumer) {
-        if(consumer.get()!=null) {
+        if (consumer.get() != null) {
             consumer.get().closeWithError();
         }
     }
@@ -150,15 +149,20 @@ public class SingleChannelConsumer implements RabbitConsumer {
         );
         InternalConsumer cons;
         String threadNamePrefix = "consume-thread-" + consumerCount;
-        if (consumerRef.get()==null) {
+        if (consumerRef.get() == null) {
             cons = new InternalConsumer(channel, subscriber, closeTimeout, threadNamePrefix, metricsReporter, new AtomicLong(), new AtomicLong());
-        }else{
+        } else {
             cons = new InternalConsumer(consumerRef.get(), threadNamePrefix, channel, subscriber);
         }
-        channel.basicConsume(
-                consumerTag,
-                cons);
         consumerRef.set(cons);
+        try {
+            channel.basicConsume(
+                    consumerTag,
+                    cons);
+        } catch (Exception e) {
+            cons.close();
+            throw e;
+        }
     }
 
     static class InternalConsumer implements Consumer {
@@ -177,7 +181,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
 
         private final ConsumeChannel channel;
         private String consumerTag;
-        private final Map<Long,Long> unackedMessages = new ConcurrentHashMap<>();
+        private final Map<Long, Long> unackedMessages = new ConcurrentHashMap<>();
 
         public InternalConsumer(ConsumeChannel channel,
                                 Subscriber<? super Message> subscriber,
@@ -193,11 +197,11 @@ public class SingleChannelConsumer implements RabbitConsumer {
             this.deliveryOffset = deliveryOffset;
             this.largestSeenDeliverTag = largestSeenDeliverTag;
             this.deliveryWorker = Schedulers.io().createWorker();
-            deliveryWorker.schedule(() -> Thread.currentThread().setName(threadNamePrefix+"-delivery"));
+            deliveryWorker.schedule(() -> Thread.currentThread().setName(threadNamePrefix + "-delivery"));
             this.ackWorker = Schedulers.io().createWorker();
-            ackWorker.schedule(() -> Thread.currentThread().setName(threadNamePrefix+"-ack"));
+            ackWorker.schedule(() -> Thread.currentThread().setName(threadNamePrefix + "-ack"));
             this.unackedMessagesWorker = Schedulers.io().createWorker();
-            unackedMessagesWorker.schedule(() -> Thread.currentThread().setName(threadNamePrefix+"-unacked"));
+            unackedMessagesWorker.schedule(() -> Thread.currentThread().setName(threadNamePrefix + "-unacked"));
             deliveryOffset.set(largestSeenDeliverTag.get());
             unackedMessagesWorker.schedulePeriodically(this::logUnackedMessages, 1, 1, TimeUnit.MINUTES);
 
@@ -217,7 +221,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
             long age = System.currentTimeMillis() - leastTimestamp;
 
 
-            if(oldMessages.size() > 0){
+            if (oldMessages.size() > 0) {
                 log.warnWithParams("Long-lived un-acked messages found",
                         "nrMessages", oldMessages.size(),
                         "olderThanMs", UNACKED_WARNING_TIME_MS,
@@ -267,14 +271,15 @@ public class SingleChannelConsumer implements RabbitConsumer {
         }
 
         @Override
-        public void handleRecoverOk(String consumerTag) {}
+        public void handleRecoverOk(String consumerTag) {
+        }
 
         @Override
         public synchronized void handleDelivery(String consumerTag, Envelope envelope, AMQP.BasicProperties headers, byte[] body) throws IOException {
             deliveryWorker.schedule(() -> {
                 if (!subscriber.isUnsubscribed() && !stopping.get()) {
                     long internalDeliverTag = envelope.getDeliveryTag() + deliveryOffset.get();
-                    if (internalDeliverTag > largestSeenDeliverTag.get()){
+                    if (internalDeliverTag > largestSeenDeliverTag.get()) {
                         largestSeenDeliverTag.set(internalDeliverTag);
                     }
                     log.traceWithParams("Consumer received message",
@@ -283,7 +288,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
                             "internalDeliveryTag", internalDeliverTag,
                             "largestSeenDeliverTag", largestSeenDeliverTag.get(),
                             "messageHeaders", headers);
-                    unackedMessages.put(internalDeliverTag,System.currentTimeMillis());
+                    unackedMessages.put(internalDeliverTag, System.currentTimeMillis());
                     final Envelope internalEnvelope = new Envelope(internalDeliverTag, envelope.isRedeliver(), envelope.getExchange(), envelope.getRoutingKey());
                     Acknowledger acknowledger = createAcknowledger(channel, internalEnvelope, headers, body);
                     Message message = new Message(acknowledger, internalEnvelope, headers, body);
@@ -317,7 +322,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
             return new Acknowledger() {
                 @Override
                 public void ack() {
-                    if(hasAcked.getAndSet(true)){
+                    if (hasAcked.getAndSet(true)) {
                         log.infoWithParams("Attempt to ack an already acked message will be ignored.",
                                 "deliveryTag", deliveryTag,
                                 "basicProperties", headers.toString());
@@ -329,10 +334,9 @@ public class SingleChannelConsumer implements RabbitConsumer {
                         try {
                             //TODO should we add multi ack here ??
                             final long currentDeliveryOffset = deliveryOffset.get();
-                            if(currentDeliveryOffset >= deliveryTag){
+                            if (currentDeliveryOffset >= deliveryTag) {
                                 consumeEventListener.ignoredAck(message);
-                            }
-                            else {
+                            } else {
                                 long actualDeliverTag = deliveryTag - currentDeliveryOffset;
                                 consumeEventListener.beforeAck(message);
                                 channel.basicAck(actualDeliverTag, false);
@@ -348,7 +352,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
 
                 @Override
                 public void reject() {
-                    if(hasAcked.getAndSet(true)){
+                    if (hasAcked.getAndSet(true)) {
                         log.infoWithParams("Attempt to reject an already acked message will be ignored.",
                                 "deliveryTag", deliveryTag,
                                 "basicProperties", headers.toString());
@@ -359,10 +363,9 @@ public class SingleChannelConsumer implements RabbitConsumer {
                     ackWorker.schedule(() -> {
                         try {
                             final long currentDeliveryOffset = deliveryOffset.get();
-                            if(currentDeliveryOffset >= envelope.getDeliveryTag()){
+                            if (currentDeliveryOffset >= envelope.getDeliveryTag()) {
                                 consumeEventListener.ignoredNack(message);
-                            }
-                            else {
+                            } else {
                                 long actualDeliverTag = envelope.getDeliveryTag() - currentDeliveryOffset;
                                 consumeEventListener.beforeNack(message);
                                 channel.basicNack(actualDeliverTag, false);
@@ -386,7 +389,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
         }
 
         synchronized void close() {
-            if (stopping.get()){
+            if (stopping.get()) {
                 log.infoWithParams("Already stopped, doing nothing.");
                 return;
             }
@@ -410,7 +413,7 @@ public class SingleChannelConsumer implements RabbitConsumer {
             closeProgressWorker.schedulePeriodically(() -> log.infoWithParams("Closing down consumer, waiting for outstanding acks",
                     "unAckedMessages", unackedMessages.size(),
                     "millisWaited", System.currentTimeMillis() - startTime,
-                    "closeTimeout", closeTimeout), 5,5,TimeUnit.SECONDS);
+                    "closeTimeout", closeTimeout), 5, 5, TimeUnit.SECONDS);
             synchronized (unackedMessages) {
 
                 while (unackedMessages.size() > 0) {

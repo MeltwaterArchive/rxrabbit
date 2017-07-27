@@ -6,6 +6,7 @@ import com.meltwater.rxrabbit.example.ExampleCode;
 import com.meltwater.rxrabbit.impl.DefaultChannelFactory;
 import com.meltwater.rxrabbit.util.ConstantBackoffAlgorithm;
 import com.meltwater.rxrabbit.util.Logger;
+import com.meltwater.rxrabbit.util.MonitoringTestThreadFactory;
 import com.meltwater.rxrabbit.util.TakeAndAckTransformer;
 import com.ning.http.client.AsyncHttpClient;
 import com.ning.http.client.Response;
@@ -19,8 +20,11 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 import rx.Observable;
+import rx.Scheduler;
 import rx.Subscriber;
 import rx.Subscription;
+import rx.internal.schedulers.CachedThreadScheduler;
+import rx.plugins.RxJavaHooks;
 import rx.schedulers.Schedulers;
 
 import java.io.IOException;
@@ -35,6 +39,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -75,7 +80,7 @@ public class RxRabbitTests {
 
     private static DefaultPublisherFactory publisherFactory;
     private static ConnectionSettings connectionSettings;
-    private static PublisherSettings  publishSettings;
+    private static PublisherSettings publishSettings;
     private static ConsumerSettings consumeSettings;
     private static DefaultChannelFactory channelFactory;
     private static DefaultConsumerFactory consumerFactory;
@@ -97,7 +102,7 @@ public class RxRabbitTests {
     public static void setupSpec() throws Exception {
         dockerContainers.resetAll(false);
 
-        Map<String,String> clientProps = new HashMap<>();
+        Map<String, String> clientProps = new HashMap<>();
         clientProps.put("app_id", RxRabbitTests.class.getName());
 
         connectionSettings = new ConnectionSettings()
@@ -147,6 +152,7 @@ public class RxRabbitTests {
         messagesSeen.clear();
         createQueues(channelFactory, inputQueue, new Exchange(inputExchange));
         publisher = publisherFactory.createPublisher();
+        RxJavaHooks.setOnIOScheduler(null);
     }
 
     @After
@@ -268,10 +274,38 @@ public class RxRabbitTests {
         dockerContainers.rabbit().start().assertUp();
         waitForNumQueuesToBePresent(2, httpClient, rabbitAdminPort);
         sendNMessages(nrMessages, publisher);
-        while (!done.get()){
+        while (!done.get()) {
             Thread.sleep(10);
         }
         assertEquals(received.size(), nrMessages);
+    }
+
+    @Test
+    public void consumer_closes_internal_subscriber_on_error_during_connection() throws Exception {
+        MonitoringTestThreadFactory threadFactory = new MonitoringTestThreadFactory();
+        Scheduler threadPoolScheduler = new CachedThreadScheduler(threadFactory);
+        RxJavaHooks.setOnIOScheduler((ioScheduler) -> threadPoolScheduler);
+
+        CountDownLatch retries = new CountDownLatch(10);
+
+        ConsumerSettings consumerSettings = new ConsumerSettings()
+                .withRetryCount(ConsumerSettings.RETRY_FOREVER)
+                .withNumChannels(1)
+                .withPreFetchCount(1024)
+                .withBackoffAlgorithm(integer -> {
+                    retries.countDown();
+                    return 1;
+                });
+
+        Observable<Message> consumer = new DefaultConsumerFactory(channelFactory, consumerSettings)
+                .createConsumer("non-existent-queue");
+
+        Subscription subscribe = consumer.subscribe();
+
+        retries.await();
+        subscribe.unsubscribe();
+
+        assertThat(threadFactory.getAliveThreads(), lessThan(10));
     }
 
     @Test
@@ -288,7 +322,8 @@ public class RxRabbitTests {
                     try {
                         log.traceWithParams("Message", "id", message.basicProperties.getMessageId());
                         Thread.sleep(1);
-                    } catch (InterruptedException ignored) {}
+                    } catch (InterruptedException ignored) {
+                    }
                     return message;
                 })
                 .compose(getIdsTransformer(nrMessages))
@@ -305,14 +340,14 @@ public class RxRabbitTests {
         AtomicInteger receivedCount = new AtomicInteger();
         final Observable<Message> consumer = consumerFactory.createConsumer(inputQueue);
         //send one message so we can start consuming
-        sendNMessages(1,publisher);
+        sendNMessages(1, publisher);
         int count = consumer
                 .doOnNext(message -> message.acknowledger.ack())
                 .map(RxRabbitTests::msgToInteger)
                 .doOnNext(integer -> {
                     int currentCount = receivedCount.incrementAndGet();
-                    if(currentCount == 1){
-                        try{
+                    if (currentCount == 1) {
+                        try {
                             log.infoWithParams("Deleting queue");
                             deleteQueue(inputQueue, adminChannel);
                             log.infoWithParams("Checking that queue was deleted");
@@ -326,14 +361,14 @@ public class RxRabbitTests {
                             log.infoWithParams("Queue was successfully deleted. Re-creating queue");
                             declareAndBindQueue(adminChannel, inputQueue, new Exchange(inputExchange));
                             log.infoWithParams("Sending messages to queue");
-                            sendNMessagesAsync(nrMessages,0,publisher).subscribe();
-                        }catch(Exception e){
+                            sendNMessagesAsync(nrMessages, 0, publisher).subscribe();
+                        } catch (Exception e) {
                             throw new RuntimeException(e);
                         }
                     }
                 })
                 .take(nrMessages + 1)
-                .timeout(1,TimeUnit.MINUTES)
+                .timeout(1, TimeUnit.MINUTES)
                 .count()
                 .doOnTerminate(adminChannel::close)
                 .toBlocking().last();
@@ -349,7 +384,7 @@ public class RxRabbitTests {
         AtomicInteger receivedCount = new AtomicInteger();
         final SortedSet<Integer> received = Collections.synchronizedSortedSet(new TreeSet<>());
         Subscription s = consumers
-                .compose(new TakeAndAckTransformer(nrMessages*2, TIMEOUT))
+                .compose(new TakeAndAckTransformer(nrMessages * 2, TIMEOUT))
                 .map(RxRabbitTests::msgToInteger)
                 .distinct()
                 .doOnNext(integer -> {
@@ -359,7 +394,7 @@ public class RxRabbitTests {
                 .subscribe();
 
         SortedSet<Integer> sent = sendNMessages(nrMessages, publisher);
-        while (receivedCount.get()<nrMessages){
+        while (receivedCount.get() < nrMessages) {
             Thread.sleep(10);
         }
         assertThat(received.size(), equalTo(nrMessages));
@@ -367,7 +402,7 @@ public class RxRabbitTests {
         int nrConsumers = countConsumers();
         s.unsubscribe();
         assertThat(nrConsumers, equalTo(3));
-        while (countConsumers()>0){
+        while (countConsumers() > 0) {
             Thread.sleep(50);
         }
     }
@@ -416,10 +451,12 @@ public class RxRabbitTests {
                     public void onCompleted() {
                         ugly.release();
                     }
+
                     @Override
                     public void onError(Throwable e) {
                         log.errorWithParams("got error", e);
                     }
+
                     @Override
                     public void onNext(PublishedMessage m) {
                         res.add(m);
@@ -471,7 +508,6 @@ public class RxRabbitTests {
         assertEquals(messagesSeen, new TreeSet<>(Collections2.transform(sentMsgs, input -> input.id)));
         assertThat(messagesSeen.size(), equalTo(nrMessages));
     }
-
 
 
     @Test
@@ -541,7 +577,7 @@ public class RxRabbitTests {
                             try {
                                 dockerContainers.rabbit().kill();
                                 log.infoWithParams("Acking messages when broker is down");
-                                for (Message m: seenMessages){
+                                for (Message m : seenMessages) {
                                     if (new Random().nextBoolean()) {
                                         m.acknowledger.ack();
                                     } else {
@@ -574,11 +610,10 @@ public class RxRabbitTests {
                 .subscribe();
 
 
-
-        while(uniqueMessages.size() < nrMessages){ //TODO timeout?
-            synchronized (seenMessages){
+        while (uniqueMessages.size() < nrMessages) { //TODO timeout?
+            synchronized (seenMessages) {
                 seenMessages.wait(100);
-                if (System.currentTimeMillis()%100 == 0) {
+                if (System.currentTimeMillis() % 100 == 0) {
                     log.infoWithParams("Current state.",
                             "seenMessages", seenMessages.size(),
                             "acked", listener.acked.size(),
@@ -607,7 +642,7 @@ public class RxRabbitTests {
         ChannelFactory proxyChannelFactory = getDroppingAndExceptionThrowingChannelFactory(1, 2);
 
         final PublisherSettings proxyPublishSettings = new PublisherSettings().withNumChannels(1).withPublisherConfirms(true).withRetryCount(5).withPublishTimeoutSecs(1);
-        DefaultPublisherFactory proxyPublishFactory = new DefaultPublisherFactory(proxyChannelFactory,proxyPublishSettings);
+        DefaultPublisherFactory proxyPublishFactory = new DefaultPublisherFactory(proxyChannelFactory, proxyPublishSettings);
         RabbitPublisher publisher = proxyPublishFactory.createPublisher();
         final List<PublishedMessage> res = sendNMessagesAsync(3, 0, publisher)
                 .take(3)
@@ -637,7 +672,7 @@ public class RxRabbitTests {
         ChannelFactory proxyChannelFactory = getDroppingAndExceptionThrowingChannelFactory(1, 2);
 
         final PublisherSettings proxyPublishSettings = new PublisherSettings().withNumChannels(1).withPublisherConfirms(false).withRetryCount(5);
-        DefaultPublisherFactory proxyPublishFactory = new DefaultPublisherFactory(proxyChannelFactory,proxyPublishSettings);
+        DefaultPublisherFactory proxyPublishFactory = new DefaultPublisherFactory(proxyChannelFactory, proxyPublishSettings);
         RabbitPublisher publisher = proxyPublishFactory.createPublisher();
         final List<PublishedMessage> res = sendNMessagesAsync(3, 0, publisher)
                 .take(3)
@@ -674,7 +709,7 @@ public class RxRabbitTests {
     }
 
     @Test
-    @RepeatRule.Repeat( times = 3 )
+    @RepeatRule.Repeat(times = 3)
     public void ignores_acks_on_messages_delivered_before_connection_reset() throws Exception {
         int nrMessages = 20;
         sendNMessagesAsync(nrMessages, 0, publisher).toBlocking().last();
@@ -707,7 +742,7 @@ public class RxRabbitTests {
                                     }
                                 }
                                 log.infoWithParams("Acking messages received before broker was restarted");
-                                for(Message m:seenMessages){
+                                for (Message m : seenMessages) {
                                     m.acknowledger.ack();
                                 }
                             } catch (Exception e) {
@@ -727,9 +762,8 @@ public class RxRabbitTests {
                 .subscribe();
 
 
-
-        while(uniqueMessages.size() < nrMessages){ //TODO timeout?
-            synchronized (seenMessages){
+        while (uniqueMessages.size() < nrMessages) { //TODO timeout?
+            synchronized (seenMessages) {
                 seenMessages.wait(100);
             }
         }
@@ -739,7 +773,6 @@ public class RxRabbitTests {
         assertThat(uniqueMessages.size(), is(nrMessages));
         assertThat(deliveryTags.size(), is(nrMessages + prefetchCount));
     }
-
 
 
     @Test
@@ -761,10 +794,12 @@ public class RxRabbitTests {
                     public void onCompleted() {
                         log.infoWithParams("completed");
                     }
+
                     @Override
                     public void onError(Throwable throwable) {
                         log.errorWithParams("onError", throwable);
                     }
+
                     @Override
                     public void onNext(String s) {
                         messagesSeen.add(Integer.valueOf(s));
@@ -784,7 +819,7 @@ public class RxRabbitTests {
                 .map(consumedMessage -> {
                     consumedMessage.acknowledger.ack();
                     String messageId = consumedMessage.basicProperties.getMessageId();
-                    if(messageId == null){
+                    if (messageId == null) {
                         log.errorWithParams("Found null message",
                                 "properties",
                                 consumedMessage.basicProperties.toString());
@@ -797,13 +832,15 @@ public class RxRabbitTests {
                     public void onCompleted() {
                         log.infoWithParams("completed");
                     }
+
                     @Override
                     public void onError(Throwable throwable) {
                         log.errorWithParams("onError", throwable);
                     }
+
                     @Override
                     public void onNext(String s) {
-                        if (s==null) {
+                        if (s == null) {
                             log.errorWithParams("Found null message", "messagesSeen", messagesSeen.size());
                             return;
                         }
@@ -844,7 +881,7 @@ public class RxRabbitTests {
 
     @Test
     public void can_subscribe_multiple_times_to_consumer() throws Exception {
-        while (getConnectionNames().size()>0){
+        while (getConnectionNames().size() > 0) {
             log.infoWithParams("Waiting for all connections to clean up before starting the test.");
             Thread.sleep(100);
         }
@@ -855,19 +892,19 @@ public class RxRabbitTests {
         Thread.sleep(5000);
 
         List<String> connectionNames = getConnectionNames();
-        assertThat("More than one connections is present. "+connectionNames.toString(), connectionNames.size(), is(1));
+        assertThat("More than one connections is present. " + connectionNames.toString(), connectionNames.size(), is(1));
         s1.unsubscribe();
         s2.unsubscribe();
 
         Thread.sleep(5000);
         connectionNames = getConnectionNames();
-        assertThat("More than one connections is present. "+connectionNames.toString(), connectionNames.size(), is(1));
+        assertThat("More than one connections is present. " + connectionNames.toString(), connectionNames.size(), is(1));
 
 
         s3.unsubscribe();
         Thread.sleep(5000);
         connectionNames = getConnectionNames();
-        assertThat("Not all connections are closed. "+connectionNames.toString(), connectionNames.size(), is(0));
+        assertThat("Not all connections are closed. " + connectionNames.toString(), connectionNames.size(), is(0));
     }
 
     @Test
@@ -882,7 +919,7 @@ public class RxRabbitTests {
                 .doOnError((e) -> error.set(true))
                 .subscribe();
         s.unsubscribe();
-        while (!(completed.get() || error.get())){
+        while (!(completed.get() || error.get())) {
             Thread.sleep(1);
         }
 
@@ -895,7 +932,7 @@ public class RxRabbitTests {
     }
 
     private void deleteConnections(List<String> connectionName) throws Exception {
-        for(String name: connectionName){
+        for (String name : connectionName) {
             final Response deleteResponse = httpClient
                     .prepareDelete("http://localhost:" + rabbitAdminPort + "/api/connections/" + name)
                     .setRealm(realm)
@@ -915,9 +952,10 @@ public class RxRabbitTests {
             synchronized (collection) {
                 try {
                     collection.wait(10);
-                }catch (InterruptedException ignored) {}
+                } catch (InterruptedException ignored) {
+                }
             }
-            if(i%1000 == 0){
+            if (i % 1000 == 0) {
                 log.infoWithParams("Waiting for messages", "waitingFor", nrMessages - collection.size());
             }
             i++;
@@ -950,10 +988,10 @@ public class RxRabbitTests {
                 .last());
     }
 
-    private Observable.Transformer<Message,List<Integer>> getIdsTransformer(int nrMessages){
+    private Observable.Transformer<Message, List<Integer>> getIdsTransformer(int nrMessages) {
         return input -> input.
-                compose(new TakeAndAckTransformer(nrMessages, TIMEOUT/10*9))
-                .doOnNext(message -> log.debugWithParams("Got message", "id",message.basicProperties.getMessageId()))
+                compose(new TakeAndAckTransformer(nrMessages, TIMEOUT / 10 * 9))
+                .doOnNext(message -> log.debugWithParams("Got message", "id", message.basicProperties.getMessageId()))
                 .map(RxRabbitTests::msgToInteger)
                 .distinct()
                 .toList();
@@ -978,8 +1016,8 @@ public class RxRabbitTests {
     private Observable<PublishedMessage> sendNMessagesAsync(int numMessages, int offset, RabbitPublisher publisher) {
         final List<Observable<PublishedMessage>> sendCallbacks = new ArrayList<>();
         log.infoWithParams("Scheduling messages to rabbit", "numMessages", numMessages);
-        for (int it = 1 ; it<=numMessages; it++) {
-            final int id = it+offset;
+        for (int it = 1; it <= numMessages; it++) {
+            final int id = it + offset;
             String messageId = String.valueOf(it);
             sendCallbacks.add(
                     publisher.call(
@@ -1018,8 +1056,11 @@ public class RxRabbitTests {
     private ChannelFactory getDroppingAndExceptionThrowingChannelFactory(final int dropAtMessageN, final int exceptionAtMessageN) {
         return new ChannelFactory() {
             final AtomicInteger publishCount = new AtomicInteger(0);
+
             @Override
-            public ConsumeChannel createConsumeChannel(String queue) throws IOException {return null;}
+            public ConsumeChannel createConsumeChannel(String queue) throws IOException {
+                return null;
+            }
 
             @Override
             public ConsumeChannel createConsumeChannel(String exchange, String routingKey) throws IOException {
@@ -1039,14 +1080,12 @@ public class RxRabbitTests {
                     public void basicPublish(String exchange, String routingKey, AMQP.BasicProperties props, byte[] body) throws IOException {
                         log.infoWithParams("Publishing message", "id", props.getMessageId());
                         final int count = publishCount.incrementAndGet();
-                        if(count == dropAtMessageN){
+                        if (count == dropAtMessageN) {
                             log.infoWithParams("Dropping message", "id", props.getMessageId());
-                        }
-                        else if(count == exceptionAtMessageN){
+                        } else if (count == exceptionAtMessageN) {
                             throw new IOException("expected");
-                        }
-                        else{
-                            delegate.basicPublish(exchange,routingKey,props,body);
+                        } else {
+                            delegate.basicPublish(exchange, routingKey, props, body);
                         }
                     }
 
@@ -1151,9 +1190,10 @@ public class RxRabbitTests {
         }
     }
 
-    static class PublishedMessage implements Comparable<PublishedMessage>{
+    static class PublishedMessage implements Comparable<PublishedMessage> {
         final Integer id;
         final boolean failed;
+
         PublishedMessage(Integer id, boolean failed) {
             this.id = id;
             this.failed = failed;

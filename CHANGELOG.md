@@ -1,4 +1,8 @@
 #RxRabbit Release Notes
+## next
+### Changes
+- No changes
+
 ## 1.2.0 - 2017-07-27
 ### Changes
 - Fix threads leaking on retrying consumer on non existing queue

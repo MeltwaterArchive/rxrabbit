@@ -1,7 +1,10 @@
 #RxRabbit Release Notes
 ## next
 ### Changes
-- No changes
+
+- Removes a flaky integration test (can_handle_multiple_consumers)
+- Updating gradle to version 4.3.1
+- Updating external dependencies such as guava, amqp-client and rxjava
 
 ## 1.2.0 - 2017-07-27
 ### Changes

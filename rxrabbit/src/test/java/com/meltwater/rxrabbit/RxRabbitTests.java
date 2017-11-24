@@ -162,13 +162,6 @@ public class RxRabbitTests {
         waitForAllConnectionsToClose(channelFactory, dockerContainers);
     }
 
-    //TODO tests to add
-    //  'nice close' should wait for outstanding acks
-    //  'nice close' should wait for publish confirms
-    //  test overflow handling of publishes
-
-    //TODO re-write some tests to use take(x)  instead they can perhaps be more readable that way
-
     @Test
     public void happy_path() throws Exception {
         int nrMessages = 500;
@@ -377,41 +370,6 @@ public class RxRabbitTests {
     }
 
     @Test
-    public void can_handle_multiple_consumers() throws Exception {
-        int nrMessages = 30_000;
-        final Observable<Message> consumers = Observable.merge(createConsumer(), createConsumer(), createConsumer());
-
-        AtomicInteger receivedCount = new AtomicInteger();
-        final SortedSet<Integer> received = Collections.synchronizedSortedSet(new TreeSet<>());
-        Subscription s = consumers
-                .compose(new TakeAndAckTransformer(nrMessages * 2, TIMEOUT))
-                .map(RxRabbitTests::msgToInteger)
-                .distinct()
-                .doOnNext(integer -> {
-                    receivedCount.incrementAndGet();
-                    received.add(integer);
-                })
-                .subscribe();
-
-        SortedSet<Integer> sent = sendNMessages(nrMessages, publisher);
-        while (receivedCount.get() < nrMessages) {
-            Thread.sleep(10);
-        }
-        assertThat(received.size(), equalTo(nrMessages));
-        assertEquals(received, sent);
-        int nrConsumers = countConsumers();
-        s.unsubscribe();
-        assertThat(nrConsumers, equalTo(3));
-        while (countConsumers() > 0) {
-            Thread.sleep(50);
-        }
-    }
-
-    private int countConsumers() throws Exception {
-        return RabbitTestUtils.countConsumers(httpClient, rabbitAdminPort);
-    }
-
-    @Test
     public void consumer_recovers_from_connection_shutdown() throws Exception {
         int nrMessages = 25_000;
         SortedSet<Integer> sent = sendNMessages(nrMessages, publisher);
@@ -610,7 +568,7 @@ public class RxRabbitTests {
                 .subscribe();
 
 
-        while (uniqueMessages.size() < nrMessages) { //TODO timeout?
+        while (uniqueMessages.size() < nrMessages) {
             synchronized (seenMessages) {
                 seenMessages.wait(100);
                 if (System.currentTimeMillis() % 100 == 0) {
@@ -762,7 +720,7 @@ public class RxRabbitTests {
                 .subscribe();
 
 
-        while (uniqueMessages.size() < nrMessages) { //TODO timeout?
+        while (uniqueMessages.size() < nrMessages) {
             synchronized (seenMessages) {
                 seenMessages.wait(100);
             }
@@ -937,7 +895,7 @@ public class RxRabbitTests {
                     .prepareDelete("http://localhost:" + rabbitAdminPort + "/api/connections/" + name)
                     .setRealm(realm)
                     .execute().get();
-            //TODO we need something like this, but not safe to crash other threads than main assertThat(deleteResponse.getStatusCode(), equalTo(204));
+            //TODO we need something like this: assertThat(deleteResponse.getStatusCode(), equalTo(204)); - but not safe to crash other threads than main
         }
     }
 

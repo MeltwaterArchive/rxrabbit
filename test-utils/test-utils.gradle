@@ -4,7 +4,7 @@ dependencies {
     //NOTE this is a circular dependency, but gradle seems to be handling that ok
     compile project (':rxrabbit')
 
-    compile 'com.meltwater.docker:kotlin-compose:1.2.0'
+    compile 'com.meltwater.docker:kotlin-compose:1.2.1'
 
     compile 'junit:junit:4.12'
     compile 'joda-time:joda-time:2.9.9'

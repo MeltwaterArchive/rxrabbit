@@ -2,6 +2,8 @@
 ## next
 ### Changes
 
+- Adds all Maven Central required information to the pom file
+- Using kotlin-compose v 1.2.1 that is also hosted on maven central
 - Removes a flaky integration test (can_handle_multiple_consumers)
 - Updating gradle to version 4.3.1
 - Updating external dependencies such as guava, amqp-client and rxjava

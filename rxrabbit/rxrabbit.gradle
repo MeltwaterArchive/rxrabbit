@@ -19,9 +19,39 @@ dependencies {
 }
 
 
+task javadocJar(type: Jar, dependsOn: javadoc) {
+    classifier = 'javadoc'
+    from javadoc.destinationDir
+}
+
 task sourceJar(type: Jar) {
     from sourceSets.main.allJava
     classifier "sources"
+}
+
+
+def pomConfig = {
+    licenses {
+        license {
+            name 'MIT License'
+            url 'http://www.opensource.org/licenses/mit-license.php'
+            distribution 'repo'
+        }
+    }
+
+    scm {
+        url 'https://github.com/meltwater/rxrabbit'
+        connection 'scm:git:git://github.com/meltwater/rxrabbit.git'
+        developerConnection 'scm:git:git@github.com:meltwater/rxrabbit.git'
+    }
+
+    developers {
+        developer {
+            name 'Meltwater Team Horace'
+            email 'horace@meltwater.com'
+            id 'meltwater/horace'
+        }
+    }
 }
 
 
@@ -30,9 +60,17 @@ publishing {
         JavaArtifacts(MavenPublication) {
             from components.java
             artifact sourceJar
+            artifact javadocJar
             groupId project.group
             artifactId project.name
             version project.version
+            pom.withXml {
+                def root = asNode()
+                root.appendNode('description', 'RxRabbit is a resilient ReactiveX styled RabbitMQ java 8 client library')
+                root.appendNode('name', project.name)
+                root.appendNode('url', 'https://github.com/meltwater/rxrabbit')
+                root.children().last() + pomConfig
+            }
         }
     }
     repositories {
@@ -45,6 +83,7 @@ publishing {
         }
     }
 }
+
 
 bintray {
     user = getenv('BINTRAY_USER')

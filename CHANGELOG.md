@@ -1,4 +1,8 @@
 #RxRabbit Release Notes
+## next
+### Changes
+- No changes
+
 ## 1.3.0 - 2017-12-01
 ### Changes
 

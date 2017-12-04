@@ -1,8 +1,9 @@
+[ ![Download](https://api.bintray.com/packages/meltwater/opensource/rxrabbit/images/download.svg) ](https://bintray.com/meltwater/opensource/rxrabbit/_latestVersion)
+[![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.meltwater/rxrabbit/badge.svg?style=plastic)](https://maven-badges.herokuapp.com/maven-central/com.meltwater/rxrabbit)
+
 # RxRabbit
 
 RxRabbit is a [RabbitMQ](https://www.rabbitmq.com/) java 8 client library that extends and enhances the [rabbitmq-java-client](https://www.rabbitmq.com/java-client.html) by providing a resilient, auto-connecting [ReactiveX](http://reactivex.io/) styled API.
-
-[ ![Download](https://api.bintray.com/packages/meltwater/opensource/rxrabbit/images/download.svg) ](https://bintray.com/meltwater/opensource/rxrabbit/_latestVersion)
 
 ## Highlights
 
@@ -36,8 +37,6 @@ The javadoc of the core API classes and interfaces is also a good source of refe
         <type>jar</type>
     </dependency>
 ```
-
-**NOTE** the rxrabbit binaries is currently hosted on [jcenter](https://bintray.com/bintray/jcenter).
 
 ## Design Philosophy
 

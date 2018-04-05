@@ -1,7 +1,8 @@
 #RxRabbit Release Notes
 ## next
 ### Changes
-- No changes
+- Uses kotlin-compose v1.3.0
+- Changes SNAPSHOT upload from Meltwater Nexus to Artifactory, releases still goes to jcenter.
 
 ## 1.3.0 - 2017-12-01
 ### Changes

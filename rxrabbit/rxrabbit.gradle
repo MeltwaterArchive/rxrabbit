@@ -5,6 +5,8 @@ apply plugin: 'groovy'
 apply plugin: 'maven'
 apply plugin: "maven-publish"
 apply plugin: 'com.jfrog.bintray'
+apply plugin: 'com.jfrog.artifactory'
+
 
 dependencies {
 
@@ -73,17 +75,22 @@ publishing {
             }
         }
     }
-    repositories {
-        maven {
-            credentials {
-                username getenv('MAVEN_USER')
-                password getenv('MAVEN_PASSWORD')
-            }
-            url getenv('MAVEN_URL')
+}
+
+artifactory {
+    contextUrl = 'https://meltwater.jfrog.io/meltwater'
+    publish {
+        repository {
+            repoKey = 'team-horace'
+            username = System.getProperty("artifactory_user")
+            password = System.getProperty("artifactory_password")
+            maven = true
+        }
+        defaults {
+            publishConfigs('archives', 'artifacts')
         }
     }
 }
-
 
 bintray {
     user = getenv('BINTRAY_USER')

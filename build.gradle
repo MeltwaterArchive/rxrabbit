@@ -1,12 +1,11 @@
-import static java.lang.System.getenv
-
 buildscript {
-
+    
     repositories {
         jcenter()
     }
     dependencies {
         classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.8.0'
+        classpath "org.jfrog.buildinfo:build-info-extractor-gradle:4+"
     }
 }
 
@@ -15,26 +14,16 @@ plugins {
 }
 
 subprojects {
-    group       = 'com.meltwater'
-    version     = parent.project.version
-
+    group = 'com.meltwater'
+    version = parent.project.version
+    
     repositories {
         jcenter()
-        mavenLocal()
-        if (getenv('MAVEN_URL')!=null) {
-            maven {
-                credentials {
-                    username getenv('MAVEN_USER')
-                    password getenv('MAVEN_PASSWORD')
-                }
-                url getenv('MAVEN_URL')
-            }
-        }
     }
 }
 
 project.group = 'com.meltwater'
 
-task ('wrapper', type:Wrapper) {
+task('wrapper', type: Wrapper) {
     gradleVersion = '4.6'
 }

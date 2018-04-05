@@ -15,7 +15,7 @@ class InspectDataCache {
     }
 
     String bindingForTcpPort(String typeString, String port) {
-        return findData(typeString).getNetworkSettings().bindingForTcpPort(port);
+        return findData(typeString).bindingForTcpPort(port);
     }
 
     private InspectData findData(String typeString) {

@@ -1,5 +1,7 @@
 /.idea
 /classes
+**/out
+
 ### Gradle template
 .gradle
 build/

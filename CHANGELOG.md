@@ -1,4 +1,8 @@
 #RxRabbit Release Notes
+## next
+### Changes
+- No changes
+
 ## 1.4.0 - 2020-12-01
 ### Changes
 - Uses kotlin-compose v1.3.0

@@ -1,5 +1,5 @@
 #RxRabbit Release Notes
-## next
+## 1.4.0 - 2020-12-01
 ### Changes
 - Uses kotlin-compose v1.3.0
 - Changes SNAPSHOT upload from Meltwater Nexus to Artifactory, releases still goes to jcenter.

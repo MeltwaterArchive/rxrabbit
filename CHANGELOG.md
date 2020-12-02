@@ -1,4 +1,8 @@
 #RxRabbit Release Notes
+## next
+### Changes
+- No changes
+
 ## 1.4.1 - 2020-12-02
 ### Changes
 - Push artifacts only to Artifactory

@@ -4,9 +4,7 @@ apply plugin: 'java'
 apply plugin: 'groovy'
 apply plugin: 'maven'
 apply plugin: "maven-publish"
-apply plugin: 'com.jfrog.bintray'
 apply plugin: 'com.jfrog.artifactory'
-
 
 dependencies {
 
@@ -19,7 +17,6 @@ dependencies {
     testCompile 'ch.qos.logback:logback-classic:1.2.3'
     testCompile 'org.spockframework:spock-core:1.1-groovy-2.4'
 }
-
 
 task javadocJar(type: Jar, dependsOn: javadoc) {
     classifier = 'javadoc'
@@ -88,26 +85,6 @@ artifactory {
         }
         defaults {
             publishConfigs('archives', 'artifacts')
-        }
-    }
-}
-
-bintray {
-    user = getenv('BINTRAY_USER')
-    key = getenv('BINTRAY_KEY')
-    publications = ['JavaArtifacts']
-    publish = true
-    pkg {
-        repo = 'opensource'
-        name = project.name
-        userOrg = 'meltwater'
-        licenses = ['MIT']
-        vcsUrl = "https://github.com/meltwater/${project.name}"
-        version {
-            gpg{
-                sign = true
-            }
-            released  = new Date()
         }
     }
 }

@@ -1,4 +1,8 @@
 #RxRabbit Release Notes
+## next
+### Changes
+- No changes
+
 ## 1.4.2 - 2020-12-03
 ### Changes
 - No changes

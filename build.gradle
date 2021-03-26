@@ -1,7 +1,7 @@
 buildscript {
     
     repositories {
-        jcenter()
+        mavenCentral()
     }
     dependencies {
         classpath "org.jfrog.buildinfo:build-info-extractor-gradle:4.13.0"
@@ -13,7 +13,7 @@ subprojects {
     version = parent.project.version
     
     repositories {
-        jcenter()
+        mavenCentral()
     }
 }
 

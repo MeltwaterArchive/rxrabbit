@@ -1,6 +1,11 @@
 [ ![Download](https://api.bintray.com/packages/meltwater/opensource/rxrabbit/images/download.svg) ](https://bintray.com/meltwater/opensource/rxrabbit/_latestVersion)
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.meltwater/rxrabbit/badge.svg?style=plastic)](https://maven-badges.herokuapp.com/maven-central/com.meltwater/rxrabbit)
 
+
+# *** DEPRECATED ***
+Meltwater replaced its message queueing tech stack in 2020 and are no longer using RabbitMQ. 
+We have therefore decided to stop maintaining this libabry as it is no longer in use internally at Meltwater.
+
 # RxRabbit
 
 RxRabbit is a [RabbitMQ](https://www.rabbitmq.com/) java 8 client library that extends and enhances the [rabbitmq-java-client](https://www.rabbitmq.com/java-client.html) by providing a resilient, auto-connecting [ReactiveX](http://reactivex.io/) styled API.
